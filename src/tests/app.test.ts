@@ -3,10 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import repairRoutes from '../routes/repairs';
-import { createRepairInDB, createTestRepair, dbGet } from './testUtils';
+import authRoutes from '../routes/auth';
+import { createRepairInDB, createTestRepair, dbGet, getTestAdminAuth, createTestEmployee } from './testUtils';
 import { getDatabase } from '../database/init';
 
-// Create test app
+// Create test app with authentication
 const createApp = () => {
   const app = express();
   
@@ -15,6 +16,7 @@ const createApp = () => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
+  app.use('/api/auth', authRoutes);
   app.use('/api/repairs', repairRoutes);
   
   app.get('/api/health', (req, res) => {
@@ -44,10 +46,34 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('GET /api/repairs', () => {
-    it('should return empty array when no repairs exist', async () => {
+  describe('Authentication Required', () => {
+    it('should reject unauthenticated requests to repairs endpoints', async () => {
       const response = await request(app)
         .get('/api/repairs')
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access token required');
+    });
+
+    it('should reject requests with invalid token', async () => {
+      const response = await request(app)
+        .get('/api/repairs')
+        .set('Authorization', 'Bearer invalid-token')
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Invalid token');
+    });
+  });
+
+  describe('GET /api/repairs', () => {
+    it('should return empty array when no repairs exist', async () => {
+      const { authHeader } = await getTestAdminAuth();
+
+      const response = await request(app)
+        .get('/api/repairs')
+        .set('Authorization', authHeader)
         .expect(200);
 
       expect(response.body).toEqual({
@@ -56,13 +82,16 @@ describe('API Integration Tests', () => {
       });
     });
 
-    it('should return all repairs when they exist', async () => {
+    it('should return all repairs with user information when they exist', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+
       // Create test repairs
-      await createRepairInDB({ client_name: 'Клиент 1' });
-      await createRepairInDB({ client_name: 'Клиент 2' });
+      await createRepairInDB({ client_name: 'Клиент 1' }, user.id);
+      await createRepairInDB({ client_name: 'Клиент 2' }, user.id);
 
       const response = await request(app)
         .get('/api/repairs')
+        .set('Authorization', authHeader)
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -70,25 +99,35 @@ describe('API Integration Tests', () => {
       expect(response.body.data[0]).toHaveProperty('id');
       expect(response.body.data[0]).toHaveProperty('client_name');
       expect(response.body.data[0]).toHaveProperty('created_at');
+      expect(response.body.data[0]).toHaveProperty('created_by_username');
+      expect(response.body.data[0]).toHaveProperty('created_by_name');
+      expect(response.body.data[0].created_by_username).toBe(user.username);
     });
   });
 
   describe('GET /api/repairs/:id', () => {
-    it('should return specific repair by id', async () => {
-      const repair = await createRepairInDB({ client_name: 'Тест Клиент' });
+    it('should return specific repair by id with user information', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({ client_name: 'Тест Клиент' }, user.id);
 
       const response = await request(app)
         .get(`/api/repairs/${repair.id}`)
+        .set('Authorization', authHeader)
         .expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.id).toBe(repair.id);
       expect(response.body.data.client_name).toBe('Тест Клиент');
+      expect(response.body.data.created_by_username).toBe(user.username);
+      expect(response.body.data.created_by_name).toBe(user.full_name);
     });
 
     it('should return 404 for non-existent repair', async () => {
+      const { authHeader } = await getTestAdminAuth();
+
       const response = await request(app)
         .get('/api/repairs/999')
+        .set('Authorization', authHeader)
         .expect(404);
 
       expect(response.body.success).toBe(false);
@@ -97,7 +136,8 @@ describe('API Integration Tests', () => {
   });
 
   describe('POST /api/repairs', () => {
-    it('should create new repair successfully', async () => {
+    it('should create new repair successfully and track creator', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
       const newRepair = createTestRepair({
         client_name: 'Новый Клиент',
         device_type: 'laptop'
@@ -105,6 +145,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .post('/api/repairs')
+        .set('Authorization', authHeader)
         .send(newRepair)
         .expect(201);
 
@@ -112,14 +153,16 @@ describe('API Integration Tests', () => {
       expect(response.body.data).toHaveProperty('id');
       expect(response.body.data.message).toBe('Repair created successfully');
 
-      // Verify repair was created in database
+      // Verify repair was created in database with correct user tracking
       const db = getDatabase();
       const createdRepair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [response.body.data.id]);
       expect(createdRepair.client_name).toBe('Новый Клиент');
       expect(createdRepair.device_type).toBe('laptop');
+      expect(createdRepair.created_by).toBe(user.id);
     });
 
     it('should return 400 for missing required fields', async () => {
+      const { authHeader } = await getTestAdminAuth();
       const incompleteRepair = {
         device_type: 'smartphone',
         brand: 'Apple'
@@ -128,6 +171,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .post('/api/repairs')
+        .set('Authorization', authHeader)
         .send(incompleteRepair)
         .expect(400);
 
@@ -136,6 +180,7 @@ describe('API Integration Tests', () => {
     });
 
     it('should handle optional fields correctly', async () => {
+      const { authHeader } = await getTestAdminAuth();
       const repairWithOptionalFields = createTestRepair({
         serial_number: null,
         client_email: null,
@@ -144,6 +189,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .post('/api/repairs')
+        .set('Authorization', authHeader)
         .send(repairWithOptionalFields)
         .expect(201);
 
@@ -152,8 +198,9 @@ describe('API Integration Tests', () => {
   });
 
   describe('PUT /api/repairs/:id', () => {
-    it('should update existing repair successfully', async () => {
-      const repair = await createRepairInDB();
+    it('should update existing repair successfully (admin/manager only)', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({}, user.id);
       
       const updates = {
         ...createTestRepair(),
@@ -166,6 +213,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .put(`/api/repairs/${repair.id}`)
+        .set('Authorization', authHeader)
         .send(updates)
         .expect(200);
 
@@ -180,11 +228,30 @@ describe('API Integration Tests', () => {
       expect(updatedRepair.actual_cost).toBe(15000);
     });
 
+    it('should reject update from employee role', async () => {
+      const { authHeader: adminAuth, user: adminUser } = await getTestAdminAuth();
+      const { authHeader: employeeAuth } = await createTestEmployee();
+      
+      const repair = await createRepairInDB({}, adminUser.id);
+      const updates = createTestRepair({ client_name: 'Should Not Update' });
+
+      const response = await request(app)
+        .put(`/api/repairs/${repair.id}`)
+        .set('Authorization', employeeAuth)
+        .send(updates)
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Insufficient permissions');
+    });
+
     it('should return 404 for non-existent repair', async () => {
+      const { authHeader } = await getTestAdminAuth();
       const updates = createTestRepair();
 
       const response = await request(app)
         .put('/api/repairs/999')
+        .set('Authorization', authHeader)
         .send(updates)
         .expect(404);
 
@@ -193,7 +260,8 @@ describe('API Integration Tests', () => {
     });
 
     it('should set completed_at when status changes to completed', async () => {
-      const repair = await createRepairInDB();
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({}, user.id);
       
       const updates = {
         ...createTestRepair(),
@@ -202,6 +270,7 @@ describe('API Integration Tests', () => {
 
       await request(app)
         .put(`/api/repairs/${repair.id}`)
+        .set('Authorization', authHeader)
         .send(updates)
         .expect(200);
 
@@ -213,11 +282,13 @@ describe('API Integration Tests', () => {
   });
 
   describe('DELETE /api/repairs/:id', () => {
-    it('should delete existing repair successfully', async () => {
-      const repair = await createRepairInDB();
+    it('should delete existing repair successfully (admin/manager only)', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({}, user.id);
 
       const response = await request(app)
         .delete(`/api/repairs/${repair.id}`)
+        .set('Authorization', authHeader)
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -229,9 +300,27 @@ describe('API Integration Tests', () => {
       expect(deletedRepair).toBeUndefined();
     });
 
+    it('should reject deletion from employee role', async () => {
+      const { authHeader: adminAuth, user: adminUser } = await getTestAdminAuth();
+      const { authHeader: employeeAuth } = await createTestEmployee();
+      
+      const repair = await createRepairInDB({}, adminUser.id);
+
+      const response = await request(app)
+        .delete(`/api/repairs/${repair.id}`)
+        .set('Authorization', employeeAuth)
+        .expect(403);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Insufficient permissions');
+    });
+
     it('should return 404 for non-existent repair', async () => {
+      const { authHeader } = await getTestAdminAuth();
+
       const response = await request(app)
         .delete('/api/repairs/999')
+        .set('Authorization', authHeader)
         .expect(404);
 
       expect(response.body.success).toBe(false);
@@ -240,8 +329,9 @@ describe('API Integration Tests', () => {
   });
 
   describe('PATCH /api/repairs/:id/status', () => {
-    it('should update repair status successfully', async () => {
-      const repair = await createRepairInDB({ repair_status: 'pending' });
+    it('should update repair status successfully and track user', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({ repair_status: 'pending' }, user.id);
 
       const statusUpdate = {
         status: 'in_progress',
@@ -250,6 +340,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .patch(`/api/repairs/${repair.id}/status`)
+        .set('Authorization', authHeader)
         .send(statusUpdate)
         .expect(200);
 
@@ -261,18 +352,21 @@ describe('API Integration Tests', () => {
       const updatedRepair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [repair.id]);
       expect(updatedRepair.repair_status).toBe('in_progress');
 
-      // Verify status history was created
+      // Verify status history was created with user tracking
       const statusHistory = await dbGet(db, 'SELECT * FROM repair_status_history WHERE repair_id = ?', [repair.id]);
       expect(statusHistory.old_status).toBe('pending');
       expect(statusHistory.new_status).toBe('in_progress');
       expect(statusHistory.notes).toBe('Начинаем работу');
+      expect(statusHistory.changed_by).toBe(user.id);
     });
 
     it('should return 400 for missing status', async () => {
-      const repair = await createRepairInDB();
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({}, user.id);
 
       const response = await request(app)
         .patch(`/api/repairs/${repair.id}/status`)
+        .set('Authorization', authHeader)
         .send({})
         .expect(400);
 
@@ -281,8 +375,11 @@ describe('API Integration Tests', () => {
     });
 
     it('should return 404 for non-existent repair', async () => {
+      const { authHeader } = await getTestAdminAuth();
+
       const response = await request(app)
         .patch('/api/repairs/999/status')
+        .set('Authorization', authHeader)
         .send({ status: 'completed' })
         .expect(404);
 
@@ -291,10 +388,12 @@ describe('API Integration Tests', () => {
     });
 
     it('should set completed_at when status changes to completed', async () => {
-      const repair = await createRepairInDB({ repair_status: 'in_progress' });
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({ repair_status: 'in_progress' }, user.id);
 
       await request(app)
         .patch(`/api/repairs/${repair.id}/status`)
+        .set('Authorization', authHeader)
         .send({ status: 'completed' })
         .expect(200);
 
@@ -305,26 +404,45 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle database errors gracefully', async () => {
-      // Test with an invalid SQL query instead of dropping tables
-      const response = await request(app)
-        .get('/api/repairs/invalid')
-        .expect(404);
+  describe('GET /api/repairs/:id/history', () => {
+    it('should return repair status history with user information', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+      const repair = await createRepairInDB({ repair_status: 'pending' }, user.id);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Repair not found');
+      // Update status to create history
+      await request(app)
+        .patch(`/api/repairs/${repair.id}/status`)
+        .set('Authorization', authHeader)
+        .send({ status: 'in_progress', notes: 'Test history' });
+
+      const response = await request(app)
+        .get(`/api/repairs/${repair.id}/history`)
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].old_status).toBe('pending');
+      expect(response.body.data[0].new_status).toBe('in_progress');
+      expect(response.body.data[0].notes).toBe('Test history');
+      expect(response.body.data[0].username).toBe(user.username);
+      expect(response.body.data[0].full_name).toBe(user.full_name);
     });
   });
 
   describe('Data Validation', () => {
     it('should accept valid repair statuses', async () => {
-      const repair = await createRepairInDB();
+      const { authHeader, user } = await getTestAdminAuth();
       const validStatuses = ['pending', 'in_progress', 'waiting_parts', 'completed', 'cancelled'];
 
-      for (const status of validStatuses) {
+      // Create a separate repair for each status test to avoid conflicts
+      for (let i = 0; i < validStatuses.length; i++) {
+        const repair = await createRepairInDB({}, user.id);
+        const status = validStatuses[i];
+        
         const response = await request(app)
           .patch(`/api/repairs/${repair.id}/status`)
+          .set('Authorization', authHeader)
           .send({ status })
           .expect(200);
 
@@ -333,6 +451,7 @@ describe('API Integration Tests', () => {
     });
 
     it('should handle large text fields correctly', async () => {
+      const { authHeader } = await getTestAdminAuth();
       const longDescription = 'А'.repeat(1000); // 1000 characters
       const repairData = createTestRepair({
         issue_description: longDescription,
@@ -341,6 +460,7 @@ describe('API Integration Tests', () => {
 
       const response = await request(app)
         .post('/api/repairs')
+        .set('Authorization', authHeader)
         .send(repairData)
         .expect(201);
 
@@ -348,12 +468,14 @@ describe('API Integration Tests', () => {
     });
 
     it('should handle numerical fields correctly', async () => {
+      const { authHeader } = await getTestAdminAuth();
       const repairData = createTestRepair({
         estimated_cost: 99999.99
       });
 
       const response = await request(app)
         .post('/api/repairs')
+        .set('Authorization', authHeader)
         .send(repairData)
         .expect(201);
 

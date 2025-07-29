@@ -1,7 +1,18 @@
--- Database schema for Accounting for Repairs system
--- This file helps WebStorm recognize database tables
+-- Users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'employee',
+  is_active BOOLEAN DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_login DATETIME
+);
 
--- Main repairs table
+-- Repairs table with user tracking
 CREATE TABLE IF NOT EXISTS repairs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   device_type TEXT NOT NULL,
@@ -17,24 +28,30 @@ CREATE TABLE IF NOT EXISTS repairs (
   actual_cost DECIMAL(10,2),
   parts_cost DECIMAL(10,2) DEFAULT 0,
   labor_cost DECIMAL(10,2) DEFAULT 0,
+  assigned_to INTEGER,
+  created_by INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME,
-  notes TEXT
+  notes TEXT,
+  FOREIGN KEY (assigned_to) REFERENCES users (id),
+  FOREIGN KEY (created_by) REFERENCES users (id)
 );
 
--- Repair status history table
+-- Repair status history with user tracking
 CREATE TABLE IF NOT EXISTS repair_status_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   repair_id INTEGER NOT NULL,
   old_status TEXT,
   new_status TEXT NOT NULL,
+  changed_by INTEGER,
   changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   notes TEXT,
-  FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE
+  FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
+  FOREIGN KEY (changed_by) REFERENCES users (id)
 );
 
--- Parts inventory table
+-- Parts table
 CREATE TABLE IF NOT EXISTS parts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,

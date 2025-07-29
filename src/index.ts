@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { initDatabase } from './database/init';
 import repairRoutes from './routes/repairs';
+import authRoutes from './routes/auth';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/repairs', repairRoutes);
 
 app.get('/api/health', (req, res) => {
@@ -35,6 +37,8 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('🔒 Authentication is enabled');
+      console.log('📋 Create your first admin user using: npm run create-admin');
     });
   } catch (error) {
     console.error('Failed to start server:', error);

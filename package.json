@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
-    "addMockData": "ts-node src/scripts/AddMockDataIntoDatabase.ts"
+    "create-admin": "ts-node src/scripts/createAdmin.ts",
+    "AddMockData": "ts-node src/scripts/AddMockDataIntoDatabase.ts"
   },
   "keywords": ["repair", "accounting", "express", "typescript"],
   "author": "",
@@ -22,7 +23,9 @@
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
     "dotenv": "^16.4.7",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
@@ -37,6 +40,8 @@
     "@types/jest": "^30.0.0",
     "supertest": "^7.0.0",
     "@types/supertest": "^6.0.2",
-    "ts-jest": "^29.2.5"
+    "ts-jest": "^29.2.5",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7"
   }
 }

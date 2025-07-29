@@ -37,6 +37,22 @@ async function createTables(): Promise<void> {
   const run = promisify(db.run.bind(db));
 
   try {
+    // Create users table
+    await run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'employee',
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME
+      )
+    `);
+
     // Create repairs table
     await run(`
       CREATE TABLE IF NOT EXISTS repairs (
@@ -54,10 +70,14 @@ async function createTables(): Promise<void> {
         actual_cost DECIMAL(10,2),
         parts_cost DECIMAL(10,2) DEFAULT 0,
         labor_cost DECIMAL(10,2) DEFAULT 0,
+        assigned_to INTEGER,
+        created_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         completed_at DATETIME,
-        notes TEXT
+        notes TEXT,
+        FOREIGN KEY (assigned_to) REFERENCES users (id),
+        FOREIGN KEY (created_by) REFERENCES users (id)
       )
     `);
 
@@ -68,9 +88,11 @@ async function createTables(): Promise<void> {
         repair_id INTEGER NOT NULL,
         old_status TEXT,
         new_status TEXT NOT NULL,
+        changed_by INTEGER,
         changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         notes TEXT,
-        FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE
+        FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
+        FOREIGN KEY (changed_by) REFERENCES users (id)
       )
     `);
 
@@ -101,7 +123,9 @@ async function createTables(): Promise<void> {
       )
     `);
 
-    console.log('Database tables created successfully');
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('Database tables created successfully');
+    }
   } catch (error) {
     console.error('Error creating tables:', error);
     throw error;
@@ -115,7 +139,9 @@ export async function closeDatabase(): Promise<void> {
         if (err) {
           reject(err);
         } else {
-          console.log('Database connection closed');
+          if (process.env.NODE_ENV !== 'test') {
+            console.log('Database connection closed');
+          }
           resolve();
         }
       });

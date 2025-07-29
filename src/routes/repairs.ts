@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDatabase } from '../database/init';
+import { authenticateToken, requireManagerOrAdmin } from '../middleware/auth';
 import sqlite3 from 'sqlite3';
 
 const router = Router();
@@ -19,6 +20,7 @@ interface Repair {
   actual_cost?: number;
   parts_cost?: number;
   labor_cost?: number;
+  assigned_to?: number;
   notes?: string;
 }
 
@@ -43,21 +45,28 @@ function dbGet(db: sqlite3.Database, query: string, params: any[] = []): Promise
 
 function dbRun(db: sqlite3.Database, query: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
   return new Promise((resolve, reject) => {
-    db.run(query, params, function(err) {
+    db.run(query, params, function(this: any, err) {
       if (err) reject(err);
       else resolve({ lastID: this.lastID, changes: this.changes });
     });
   });
 }
 
-// GET /api/repairs - Get all repairs
-router.get('/', async (req: Request, res: Response) => {
+// GET /api/repairs - Get all repairs (authenticated users only)
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     // language=SQL
     const repairs = await dbAll(db, `
-      SELECT * FROM repairs 
-      ORDER BY created_at DESC
+      SELECT r.*, 
+             u1.username as created_by_username,
+             u1.full_name as created_by_name,
+             u2.username as assigned_to_username,
+             u2.full_name as assigned_to_name
+      FROM repairs r
+      LEFT JOIN users u1 ON r.created_by = u1.id
+      LEFT JOIN users u2 ON r.assigned_to = u2.id
+      ORDER BY r.created_at DESC
     `);
     
     res.json({ success: true, data: repairs });
@@ -67,12 +76,22 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/repairs/:id - Get single repair
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/repairs/:id - Get single repair (authenticated users only)
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     // language=SQL
-    const repair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [req.params.id]);
+    const repair = await dbGet(db, `
+      SELECT r.*, 
+             u1.username as created_by_username,
+             u1.full_name as created_by_name,
+             u2.username as assigned_to_username,
+             u2.full_name as assigned_to_name
+      FROM repairs r
+      LEFT JOIN users u1 ON r.created_by = u1.id
+      LEFT JOIN users u2 ON r.assigned_to = u2.id
+      WHERE r.id = ?
+    `, [req.params.id]);
     
     if (!repair) {
       return res.status(404).json({ success: false, error: 'Repair not found' });
@@ -85,8 +104,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/repairs - Create new repair
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/repairs - Create new repair (authenticated users only)
+router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     
@@ -100,6 +119,7 @@ router.post('/', async (req: Request, res: Response) => {
       client_email,
       issue_description,
       estimated_cost,
+      assigned_to,
       notes
     }: Repair = req.body;
 
@@ -115,11 +135,13 @@ router.post('/', async (req: Request, res: Response) => {
     const result = await dbRun(db, `
       INSERT INTO repairs (
         device_type, brand, model, serial_number, client_name, 
-        client_phone, client_email, issue_description, estimated_cost, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        client_phone, client_email, issue_description, estimated_cost, 
+        assigned_to, created_by, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       device_type, brand, model, serial_number, client_name,
-      client_phone, client_email, issue_description, estimated_cost, notes
+      client_phone, client_email, issue_description, estimated_cost,
+      assigned_to, req.user!.id, notes
     ]);
 
     res.status(201).json({ 
@@ -132,8 +154,8 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/repairs/:id - Update repair
-router.put('/:id', async (req: Request, res: Response) => {
+// PUT /api/repairs/:id - Update repair (managers and admins only)
+router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     
@@ -151,6 +173,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       actual_cost,
       parts_cost,
       labor_cost,
+      assigned_to,
       notes
     }: Repair = req.body;
 
@@ -160,14 +183,14 @@ router.put('/:id', async (req: Request, res: Response) => {
         device_type = ?, brand = ?, model = ?, serial_number = ?,
         client_name = ?, client_phone = ?, client_email = ?,
         issue_description = ?, repair_status = ?, estimated_cost = ?,
-        actual_cost = ?, parts_cost = ?, labor_cost = ?, notes = ?,
+        actual_cost = ?, parts_cost = ?, labor_cost = ?, assigned_to = ?, notes = ?,
         updated_at = CURRENT_TIMESTAMP,
         completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
       WHERE id = ?
     `, [
       device_type, brand, model, serial_number, client_name,
       client_phone, client_email, issue_description, repair_status,
-      estimated_cost, actual_cost, parts_cost, labor_cost, notes,
+      estimated_cost, actual_cost, parts_cost, labor_cost, assigned_to, notes,
       repair_status, req.params.id
     ]);
 
@@ -182,8 +205,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/repairs/:id - Delete repair
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/repairs/:id - Delete repair (managers and admins only)
+router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     // language=SQL
@@ -200,8 +223,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/repairs/:id/status - Update repair status
-router.patch('/:id/status', async (req: Request, res: Response) => {
+// PATCH /api/repairs/:id/status - Update repair status (authenticated users only)
+router.patch('/:id/status', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     const { status, notes } = req.body;
@@ -228,16 +251,37 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       WHERE id = ?
     `, [status, status, req.params.id]);
 
-    // Log status change
+    // Log status change with user who made the change
     // language=SQL
     await dbRun(db, `
-      INSERT INTO repair_status_history (repair_id, old_status, new_status, notes)
-      VALUES (?, ?, ?, ?)
-    `, [req.params.id, currentRepair.repair_status, status, notes || null]);
+      INSERT INTO repair_status_history (repair_id, old_status, new_status, changed_by, notes)
+      VALUES (?, ?, ?, ?, ?)
+    `, [req.params.id, currentRepair.repair_status, status, req.user!.id, notes || null]);
 
     res.json({ success: true, message: 'Repair status updated successfully' });
   } catch (error) {
     console.error('Error updating repair status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/repairs/:id/history - Get repair status history (authenticated users only)
+router.get('/:id/history', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    
+    // language=SQL
+    const history = await dbAll(db, `
+      SELECT rsh.*, u.username, u.full_name
+      FROM repair_status_history rsh
+      LEFT JOIN users u ON rsh.changed_by = u.id
+      WHERE rsh.repair_id = ?
+      ORDER BY rsh.changed_at DESC
+    `, [req.params.id]);
+
+    res.json({ success: true, data: history });
+  } catch (error) {
+    console.error('Error fetching repair history:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
