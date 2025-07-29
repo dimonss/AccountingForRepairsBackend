@@ -18,7 +18,16 @@ export async function initDatabase(): Promise<void> {
         return;
       }
       console.log('Connected to SQLite database');
-      createTables().then(resolve).catch(reject);
+      
+      // Enable foreign key constraints
+      db.run('PRAGMA foreign_keys = ON', (err) => {
+        if (err) {
+          console.error('Error enabling foreign keys:', err);
+          reject(err);
+          return;
+        }
+        createTables().then(resolve).catch(reject);
+      });
     });
   });
 }

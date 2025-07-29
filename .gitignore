@@ -46,6 +46,16 @@ dist/
 *.sqlite
 *.sqlite3
 
+# Test databases
+test-*.db
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
 # OS generated files
 .DS_Store
 .DS_Store?

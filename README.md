@@ -62,7 +62,7 @@ Create a `.env` file in the root directory:
 ```
 PORT=3001
 NODE_ENV=development
-DB_NAME=repairs.db
+DB_NAME=db.sqlite
 CORS_ORIGIN=http://localhost:5173
 ```
 
