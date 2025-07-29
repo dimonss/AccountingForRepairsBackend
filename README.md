@@ -11,6 +11,7 @@ Express.js backend server with TypeScript for the Accounting for Repairs applica
 - **CORS** enabled for frontend communication
 - **Security** with Helmet middleware
 - **Logging** with Morgan middleware
+- **Database Seeding** with mock data for testing
 
 ## Prerequisites
 
@@ -31,7 +32,28 @@ npm run build
 
 # Start production server
 npm start
+
+# Seed database with test data
+npm run seed
 ```
+
+## Database Seeding
+
+To populate the database with test data for development:
+
+```bash
+# Seed database with mock data (development)
+npm run seed
+
+# Build and seed for production
+npm run seed:prod
+```
+
+The seeding script adds:
+- **10 repair orders** with various statuses and device types
+- **8 parts** with inventory information
+- **Repair-parts relationships** linking repairs to used parts
+- **Status history** showing repair progress
 
 ## Environment Variables
 
@@ -96,6 +118,33 @@ CREATE TABLE repair_status_history (
 );
 ```
 
+### Parts Table
+```sql
+CREATE TABLE parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  cost DECIMAL(10,2) NOT NULL,
+  quantity_in_stock INTEGER DEFAULT 0,
+  supplier TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Repair-Parts Junction Table
+```sql
+CREATE TABLE repair_parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repair_id INTEGER NOT NULL,
+  part_id INTEGER NOT NULL,
+  quantity_used INTEGER NOT NULL DEFAULT 1,
+  cost_per_unit DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
+  FOREIGN KEY (part_id) REFERENCES parts (id)
+);
+```
+
 ## Development
 
 The server uses nodemon for development with automatic TypeScript compilation and restart on file changes.
@@ -109,6 +158,9 @@ npm run build
 
 # Production mode
 npm start
+
+# Populate database with test data
+npm run seed
 ```
 
 ## Project Structure
@@ -118,9 +170,30 @@ src/
 ├── index.ts              # Main server file
 ├── database/
 │   └── init.ts           # Database initialization
-└── routes/
-    └── repairs.ts        # Repair routes and handlers
+├── routes/
+│   └── repairs.ts        # Repair routes and handlers
+└── scripts/
+    └── AddMockDataIntoDatabase.ts   # Database seeding script
 ```
+
+## Mock Data
+
+The seeding script includes realistic test data:
+
+### Repair Orders
+- Various device types: smartphones, laptops, tablets, desktops, printers, monitors
+- Different repair statuses: pending, in_progress, waiting_parts, completed, cancelled
+- Russian client names and contact information
+- Realistic repair scenarios and costs
+
+### Parts Inventory
+- Common repair parts with stock levels
+- Supplier information
+- Realistic pricing
+
+### Status Tracking
+- Complete repair history with status changes
+- Notes and timestamps for each status update
 
 ## Dependencies
 
