@@ -3,8 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { initDatabase } from './database/init.js';
-import repairRoutes from './routes/repairs.js';
+import { initDatabase } from './database/init';
+import repairRoutes from './routes/repairs';
 
 dotenv.config();
 

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getDatabase } from '../database/init.js';
+import { getDatabase } from '../database/init';
 import sqlite3 from 'sqlite3';
 
 const router = Router();
@@ -54,6 +54,7 @@ function dbRun(db: sqlite3.Database, query: string, params: any[] = []): Promise
 router.get('/', async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
+    // language=SQL
     const repairs = await dbAll(db, `
       SELECT * FROM repairs 
       ORDER BY created_at DESC
@@ -70,6 +71,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
+    // language=SQL
     const repair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [req.params.id]);
     
     if (!repair) {
@@ -109,6 +111,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    // language=SQL
     const result = await dbRun(db, `
       INSERT INTO repairs (
         device_type, brand, model, serial_number, client_name, 
@@ -151,6 +154,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       notes
     }: Repair = req.body;
 
+    // language=SQL
     const result = await dbRun(db, `
       UPDATE repairs SET 
         device_type = ?, brand = ?, model = ?, serial_number = ?,
@@ -182,6 +186,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
+    // language=SQL
     const result = await dbRun(db, 'DELETE FROM repairs WHERE id = ?', [req.params.id]);
 
     if (result.changes === 0) {
@@ -206,6 +211,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
 
     // Get current status
+    // language=SQL
     const currentRepair = await dbGet(db, 'SELECT repair_status FROM repairs WHERE id = ?', [req.params.id]);
     
     if (!currentRepair) {
@@ -213,6 +219,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
 
     // Update repair status
+    // language=SQL
     await dbRun(db, `
       UPDATE repairs SET 
         repair_status = ?, 
@@ -222,6 +229,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     `, [status, status, req.params.id]);
 
     // Log status change
+    // language=SQL
     await dbRun(db, `
       INSERT INTO repair_status_history (repair_id, old_status, new_status, notes)
       VALUES (?, ?, ?, ?)
