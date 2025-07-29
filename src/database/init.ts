@@ -1,8 +1,9 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
+import dotenv from "dotenv";
 
+dotenv.config();
 const DB_NAME = process.env.DB_NAME || 'repairs.db';
-
 let db: sqlite3.Database;
 
 export function getDatabase(): sqlite3.Database {
