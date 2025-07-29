@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-const DB_PATH = path.join(process.cwd(), process.env.DB_NAME || 'repairs.db');
+const DB_PATH = path.join(process.cwd(), process.env.DB_NAME_FOR_INSERT_MOCK_DATA || 'testDB.sqlite');
 // Mock data for repairs
 const mockRepairs = [
   {
