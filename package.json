@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "create-admin": "ts-node src/scripts/createAdmin.ts",
+    "create-default-admin": "ts-node src/scripts/createDefaultAdmin.ts",
     "add-mock-data": "ts-node src/scripts/AddMockDataIntoDatabase.ts",
     "generate-defauil-env": "node scripts/generateDefaultEnv.js"
   },

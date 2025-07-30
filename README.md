@@ -25,7 +25,10 @@ Express.js backend server with TypeScript for the Accounting for Repairs applica
 npm install
 
 # Setup environment variables
-npm run generate-env-quick
+npm run generate-defauil-env
+
+# Create default admin user
+npm run create-default-admin
 
 # Start development server
 npm run dev
@@ -58,6 +61,23 @@ The seeding script adds:
 - **Repair-parts relationships** linking repairs to used parts
 - **Status history** showing repair progress
 
+## Default Admin User
+
+Create a default administrator account for development:
+
+```bash
+# Create default admin (username: test, password: test)
+npm run create-default-admin
+```
+
+Default credentials:
+- **Username:** `test`
+- **Password:** `test`
+- **Email:** `test@mail.com`
+- **Role:** `admin`
+
+⚠️ **Security Warning:** This is for development only. Change the password in production!
+
 ## Environment Variables
 
 The application uses environment variables for configuration. You can generate a `.env` file using the provided scripts:
@@ -65,13 +85,7 @@ The application uses environment variables for configuration. You can generate a
 ### Quick Setup
 ```bash
 # Generate .env file with default values
-npm run generate-env-quick
-```
-
-### Interactive Setup
-```bash
-# Generate .env file with custom values
-npm run generate-env
+npm run generate-defauil-env
 ```
 
 ### Manual Setup
