@@ -24,6 +24,9 @@ Express.js backend server with TypeScript for the Accounting for Repairs applica
 # Install dependencies
 npm install
 
+# Setup environment variables
+npm run generate-env-quick
+
 # Start development server
 npm run dev
 
@@ -57,14 +60,43 @@ The seeding script adds:
 
 ## Environment Variables
 
+The application uses environment variables for configuration. You can generate a `.env` file using the provided scripts:
+
+### Quick Setup
+```bash
+# Generate .env file with default values
+npm run generate-env-quick
+```
+
+### Interactive Setup
+```bash
+# Generate .env file with custom values
+npm run generate-env
+```
+
+### Manual Setup
 Create a `.env` file in the root directory:
 
 ```
+# Server Configuration
 PORT=3001
 NODE_ENV=development
-DB_NAME=db.sqlite
+
+# Database Configuration
+DB_NAME=repairs.db
+
+# CORS Configuration
 CORS_ORIGIN=http://localhost:5173
-JWT_SECRET=top_sevret_string
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRES_IN=7d
+
+# Password Hashing
+BCRYPT_ROUNDS=12
+
+# Database for mock data (optional)
+DB_NAME_FOR_INSERT_MOCK_DATA=testDB.sqlite
 ```
 
 ## API Endpoints

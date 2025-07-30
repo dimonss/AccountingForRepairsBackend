@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "create-admin": "ts-node src/scripts/createAdmin.ts",
-    "add_mock_data": "ts-node src/scripts/AddMockDataIntoDatabase.ts"
+    "add-mock-data": "ts-node src/scripts/AddMockDataIntoDatabase.ts",
+    "generate-defauil-env": "node scripts/generateDefaultEnv.js"
   },
   "keywords": ["repair", "accounting", "express", "typescript"],
   "author": "",
