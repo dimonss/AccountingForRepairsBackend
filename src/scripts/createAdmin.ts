@@ -125,9 +125,9 @@ async function createAdmin() {
       process.exit(1);
     }
 
-    const password = await askPassword('Password (min 6 chars): ');
-    if (!password || password.length < 6) {
-      console.log('❌ Password must be at least 6 characters long!');
+    const password = await askPassword('Password (min 4 chars): ');
+    if (!password || password.length < 4) {
+      console.log('❌ Password must be at least 4 characters long!');
       rl.close();
       await closeDatabase();
       process.exit(1);

@@ -64,6 +64,7 @@ PORT=3001
 NODE_ENV=development
 DB_NAME=db.sqlite
 CORS_ORIGIN=http://localhost:5173
+JWT_SECRET=top_sevret_string
 ```
 
 ## API Endpoints
