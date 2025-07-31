@@ -27,7 +27,7 @@ function dbGet(db: any, query: string, params: any[] = []): Promise<any> {
   });
 }
 
-// Middleware to verify JWT token
+// Middleware to verify JWT access token
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -51,6 +51,14 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     // Verify token
     const decoded = jwt.verify(token, jwtSecret) as any;
+    
+    // Check if this is an access token
+    if (decoded.type !== 'access') {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid token type' 
+      });
+    }
     
     // Get user from database
     const db = getDatabase();
@@ -89,6 +97,14 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return res.status(401).json({ 
         success: false, 
         error: 'Invalid token' 
+      });
+    }
+    
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Access token expired',
+        code: 'TOKEN_EXPIRED'
       });
     }
     

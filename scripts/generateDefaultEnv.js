@@ -11,7 +11,9 @@ const envDefaults = {
     JWT_SECRET: 'test-jwt-secret-key-for-testing-only',
     JWT_EXPIRES_IN: '7d',
     BCRYPT_ROUNDS: '12',
-    DB_NAME_FOR_INSERT_MOCK_DATA: 'testDB.sqlite'
+    DB_NAME_FOR_INSERT_MOCK_DATA: 'testDB.sqlite',
+    JWT_ACCESS_EXPIRES_IN: '15m',
+    JWT_REFRESH_EXPIRES_IN: '30d'
 };
 
 function createEnvFile() {
@@ -42,6 +44,8 @@ BCRYPT_ROUNDS=${envDefaults.BCRYPT_ROUNDS}
 
 # Database for mock data (optional)
 DB_NAME_FOR_INSERT_MOCK_DATA=${envDefaults.DB_NAME_FOR_INSERT_MOCK_DATA}
+JWT_ACCESS_EXPIRES_IN=${envDefaults.JWT_ACCESS_EXPIRES_IN}
+JWT_REFRESH_EXPIRES_IN=${envDefaults.JWT_REFRESH_EXPIRES_IN}
 `;
 
     try {

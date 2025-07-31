@@ -12,6 +12,24 @@ CREATE TABLE IF NOT EXISTS users (
   last_login DATETIME
 );
 
+-- Refresh tokens table for JWT token management
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  token_hash TEXT UNIQUE NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  user_agent TEXT,
+  ip_address TEXT,
+  is_revoked BOOLEAN DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+-- Index for performance on refresh token lookups
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+
 -- Repairs table with user tracking
 CREATE TABLE IF NOT EXISTS repairs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

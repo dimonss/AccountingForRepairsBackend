@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { getDatabase } from '../database/init';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 
@@ -34,18 +35,52 @@ function dbAll(db: any, query: string, params: any[] = []): Promise<any[]> {
   });
 }
 
-// Generate JWT token
-const generateToken = (userId: number): string => {
+// Generate JWT access token (short-lived)
+const generateAccessToken = (userId: number): string => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET not configured');
   }
   
   return jwt.sign(
-    { userId },
+    { userId, type: 'access' },
     jwtSecret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' } as jwt.SignOptions
   );
+};
+
+// Generate refresh token (long-lived)
+const generateRefreshToken = (): string => {
+  return crypto.randomBytes(64).toString('hex');
+};
+
+// Hash refresh token for storage
+const hashRefreshToken = (token: string): string => {
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+// Store refresh token in database
+const storeRefreshToken = async (userId: number, refreshToken: string, userAgent?: string, ipAddress?: string) => {
+  const db = getDatabase();
+  const tokenHash = hashRefreshToken(refreshToken);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+  await dbRun(db, `
+    INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
+    VALUES (?, ?, ?, ?, ?)
+  `, [userId, tokenHash, expiresAt.toISOString(), userAgent || null, ipAddress || null]);
+
+  return refreshToken;
+};
+
+// Clean up expired refresh tokens
+const cleanupExpiredTokens = async () => {
+  const db = getDatabase();
+  await dbRun(db, `
+    DELETE FROM refresh_tokens 
+    WHERE expires_at < datetime('now') OR is_revoked = 1
+  `);
 };
 
 // POST /api/auth/register - Register new user (admin only)
@@ -159,18 +194,31 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
+    // Clean up old tokens for this user (optional: keep only latest N tokens)
+    await dbRun(db, `
+      DELETE FROM refresh_tokens 
+      WHERE user_id = ? AND (expires_at < datetime('now') OR is_revoked = 1)
+    `, [user.id]);
+
     // Update last login
     await dbRun(db, `
       UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
     `, [user.id]);
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken();
+
+    // Store refresh token
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    await storeRefreshToken(user.id, refreshToken, userAgent, ipAddress);
 
     res.json({
       success: true,
       data: {
-        token,
+        accessToken,
+        refreshToken,
         user: {
           id: user.id,
           username: user.username,
@@ -185,6 +233,180 @@ router.post('/login', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Login failed'
+    });
+  }
+});
+
+// POST /api/auth/refresh - Refresh tokens
+router.post('/refresh', async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Refresh token required'
+      });
+    }
+
+    const db = getDatabase();
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    // Find and validate refresh token
+    const storedToken = await dbGet(db, `
+      SELECT rt.*, u.id as user_id, u.username, u.email, u.full_name, u.role, u.is_active
+      FROM refresh_tokens rt
+      JOIN users u ON rt.user_id = u.id
+      WHERE rt.token_hash = ? AND rt.expires_at > datetime('now') AND rt.is_revoked = 0 AND u.is_active = 1
+    `, [tokenHash]);
+
+    if (!storedToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired refresh token'
+      });
+    }
+
+    // Update last used timestamp
+    await dbRun(db, `
+      UPDATE refresh_tokens 
+      SET last_used_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `, [storedToken.id]);
+
+    // Generate new access token
+    const newAccessToken = generateAccessToken(storedToken.user_id);
+
+    res.json({
+      success: true,
+      data: {
+        accessToken: newAccessToken,
+        user: {
+          id: storedToken.user_id,
+          username: storedToken.username,
+          email: storedToken.email,
+          full_name: storedToken.full_name,
+          role: storedToken.role
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Token refresh failed'
+    });
+  }
+});
+
+// POST /api/auth/logout - Logout user (revoke refresh token)
+router.post('/logout', async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (refreshToken) {
+      const db = getDatabase();
+      const tokenHash = hashRefreshToken(refreshToken);
+
+      // Revoke the refresh token
+      await dbRun(db, `
+        UPDATE refresh_tokens 
+        SET is_revoked = 1 
+        WHERE token_hash = ?
+      `, [tokenHash]);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Logout failed'
+    });
+  }
+});
+
+// POST /api/auth/logout-all - Logout from all devices
+router.post('/logout-all', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    // Revoke all refresh tokens for this user
+    await dbRun(db, `
+      UPDATE refresh_tokens 
+      SET is_revoked = 1 
+      WHERE user_id = ?
+    `, [req.user!.id]);
+
+    res.json({
+      success: true,
+      message: 'Logged out from all devices successfully'
+    });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Logout all failed'
+    });
+  }
+});
+
+// GET /api/auth/sessions - Get active sessions (refresh tokens)
+router.get('/sessions', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    const sessions = await dbAll(db, `
+      SELECT id, created_at, last_used_at, user_agent, ip_address
+      FROM refresh_tokens 
+      WHERE user_id = ? AND expires_at > datetime('now') AND is_revoked = 0
+      ORDER BY last_used_at DESC
+    `, [req.user!.id]);
+
+    res.json({
+      success: true,
+      data: sessions
+    });
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get sessions'
+    });
+  }
+});
+
+// DELETE /api/auth/sessions/:id - Revoke specific session
+router.delete('/sessions/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const db = getDatabase();
+
+    const result = await dbRun(db, `
+      UPDATE refresh_tokens 
+      SET is_revoked = 1 
+      WHERE id = ? AND user_id = ?
+    `, [sessionId, req.user!.id]);
+
+    if (result.changes === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Session revoked successfully'
+    });
+  } catch (error) {
+    console.error('Revoke session error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to revoke session'
     });
   }
 });
@@ -334,6 +556,13 @@ router.post('/change-password', authenticateToken, async (req: Request, res: Res
       WHERE id = ?
     `, [newPasswordHash, req.user!.id]);
 
+    // Revoke all refresh tokens to force re-login on all devices
+    await dbRun(db, `
+      UPDATE refresh_tokens 
+      SET is_revoked = 1 
+      WHERE user_id = ?
+    `, [req.user!.id]);
+
     res.json({
       success: true,
       message: 'Password changed successfully'
@@ -346,5 +575,20 @@ router.post('/change-password', authenticateToken, async (req: Request, res: Res
     });
   }
 });
+
+// Background job to clean up expired tokens (should be run periodically)
+const startTokenCleanup = () => {
+  setInterval(async () => {
+    try {
+      await cleanupExpiredTokens();
+      console.log('Cleaned up expired refresh tokens');
+    } catch (error) {
+      console.error('Token cleanup error:', error);
+    }
+  }, 60 * 60 * 1000); // Run every hour
+};
+
+// Start cleanup when module loads
+startTokenCleanup();
 
 export default router; 
