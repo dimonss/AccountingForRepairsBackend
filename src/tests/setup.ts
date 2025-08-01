@@ -11,7 +11,7 @@ dotenv.config();
 process.env.DB_NAME = 'test-repairs.db';
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
-process.env.JWT_EXPIRES_IN = '1h';
+process.env.JWT_ACCESS_EXPIRES_IN = '1h';
 process.env.BCRYPT_ROUNDS = '4'; // Lower rounds for faster tests
 
 const TEST_DB_PATH = path.join(process.cwd(), 'test-repairs.db');
@@ -32,6 +32,11 @@ beforeAll(async () => {
 
 // Global teardown - runs once after all tests
 afterAll(async () => {
+  // Clear token cleanup interval if it exists
+  if ((global as any).tokenCleanupInterval) {
+    clearInterval((global as any).tokenCleanupInterval);
+  }
+  
   await closeDatabase();
   
   // Clean up test database
@@ -50,10 +55,11 @@ beforeEach(async () => {
     await dbRun(db, 'DELETE FROM repair_status_history');
     await dbRun(db, 'DELETE FROM repairs');
     await dbRun(db, 'DELETE FROM parts');
+    await dbRun(db, 'DELETE FROM refresh_tokens'); // Clear refresh tokens
     
     // Reset auto-increment sequences for consistent IDs in tests
-    await dbRun(db, 'DELETE FROM sqlite_sequence WHERE name IN (?, ?, ?, ?)', 
-                ['repairs', 'parts', 'repair_parts', 'repair_status_history']);
+    await dbRun(db, 'DELETE FROM sqlite_sequence WHERE name IN (?, ?, ?, ?, ?)', 
+                ['repairs', 'parts', 'repair_parts', 'repair_status_history', 'refresh_tokens']);
                 
     // Only delete non-admin users that are not referenced by any remaining data
     // Since we cleared all repairs/history, we can now safely clear non-admin users

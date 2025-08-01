@@ -67,9 +67,9 @@ export async function createTestAdminUser() {
 export function generateTestToken(userId: number): string {
   const jwtSecret = process.env.JWT_SECRET!;
   return jwt.sign(
-    { userId },
+    { userId, type: 'access' },
     jwtSecret,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' } as jwt.SignOptions
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1h' } as jwt.SignOptions
   );
 }
 

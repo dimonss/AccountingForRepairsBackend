@@ -37,7 +37,8 @@ describe('Authentication API Tests', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('token');
+      expect(response.body.data).toHaveProperty('accessToken');
+      expect(response.body.data).toHaveProperty('refreshToken');
       expect(response.body.data).toHaveProperty('user');
       expect(response.body.data.user.username).toBe(TEST_ADMIN.username);
       expect(response.body.data.user.email).toBe(TEST_ADMIN.email);
@@ -55,6 +56,8 @@ describe('Authentication API Tests', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveProperty('accessToken');
+      expect(response.body.data).toHaveProperty('refreshToken');
       expect(response.body.data.user.email).toBe(TEST_ADMIN.email);
     });
 

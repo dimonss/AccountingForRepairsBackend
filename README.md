@@ -104,7 +104,8 @@ CORS_ORIGIN=http://localhost:5173
 
 # JWT Configuration
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRES_IN=7d
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=30d
 
 # Password Hashing
 BCRYPT_ROUNDS=12

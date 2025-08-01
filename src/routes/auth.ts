@@ -578,7 +578,7 @@ router.post('/change-password', authenticateToken, async (req: Request, res: Res
 
 // Background job to clean up expired tokens (should be run periodically)
 const startTokenCleanup = () => {
-  setInterval(async () => {
+  const cleanup = setInterval(async () => {
     try {
       await cleanupExpiredTokens();
       console.log('Cleaned up expired refresh tokens');
@@ -586,9 +586,15 @@ const startTokenCleanup = () => {
       console.error('Token cleanup error:', error);
     }
   }, 60 * 60 * 1000); // Run every hour
+  
+  // Store reference to clear interval in tests
+  (global as any).tokenCleanupInterval = cleanup;
+  return cleanup;
 };
 
-// Start cleanup when module loads
-startTokenCleanup();
+// Start cleanup when module loads (but not in test environment)
+if (process.env.NODE_ENV !== 'test') {
+  startTokenCleanup();
+}
 
 export default router; 
