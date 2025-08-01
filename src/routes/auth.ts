@@ -63,8 +63,10 @@ const hashRefreshToken = (token: string): string => {
 const storeRefreshToken = async (userId: number, refreshToken: string, userAgent?: string, ipAddress?: string) => {
   const db = getDatabase();
   const tokenHash = hashRefreshToken(refreshToken);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+  
+  // Use environment variable instead of hardcoded 30 days
+  const refreshTokenExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '2m'; // 2 minutes for testing
+  const expiresAt = new Date(Date.now() + parseTokenExpiry(refreshTokenExpiresIn));
 
   await dbRun(db, `
     INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
@@ -72,6 +74,25 @@ const storeRefreshToken = async (userId: number, refreshToken: string, userAgent
   `, [userId, tokenHash, expiresAt.toISOString(), userAgent || null, ipAddress || null]);
 
   return refreshToken;
+};
+
+// Helper function to parse token expiry (like '30s', '15m', '1h', '7d') to milliseconds
+const parseTokenExpiry = (expiry: string): number => {
+  const match = expiry.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    return 15 * 60 * 1000; // 15 minutes default
+  }
+  
+  const [, amount, unit] = match;
+  const num = parseInt(amount);
+  
+  switch (unit) {
+    case 's': return num * 1000;           // seconds
+    case 'm': return num * 60 * 1000;      // minutes  
+    case 'h': return num * 60 * 60 * 1000; // hours
+    case 'd': return num * 24 * 60 * 60 * 1000; // days
+    default: return 15 * 60 * 1000; // 15 minutes default
+  }
 };
 
 // Clean up expired refresh tokens
@@ -214,6 +235,15 @@ router.post('/login', async (req: Request, res: Response) => {
     const ipAddress = req.ip || req.connection.remoteAddress;
     await storeRefreshToken(user.id, refreshToken, userAgent, ipAddress);
 
+    // Calculate expiration times
+    const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '30s';
+    const refreshTokenExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '2m'; // 2 minutes for testing
+    
+    // Calculate actual expiration timestamps
+    const now = Date.now();
+    const accessExpiresAt = new Date(now + parseTokenExpiry(accessTokenExpiresIn));
+    const refreshExpiresAt = new Date(now + parseTokenExpiry(refreshTokenExpiresIn));
+
     res.json({
       success: true,
       data: {
@@ -225,6 +255,12 @@ router.post('/login', async (req: Request, res: Response) => {
           email: user.email,
           full_name: user.full_name,
           role: user.role
+        },
+        expiresIn: {
+          accessToken: accessTokenExpiresIn,
+          refreshToken: refreshTokenExpiresIn,
+          accessExpiresAt: accessExpiresAt.toISOString(),
+          refreshExpiresAt: refreshExpiresAt.toISOString()
         }
       }
     });
@@ -252,41 +288,88 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const db = getDatabase();
     const tokenHash = hashRefreshToken(refreshToken);
 
-    // Find and validate refresh token
+    // Find refresh token first
     const storedToken = await dbGet(db, `
       SELECT rt.*, u.id as user_id, u.username, u.email, u.full_name, u.role, u.is_active
       FROM refresh_tokens rt
       JOIN users u ON rt.user_id = u.id
-      WHERE rt.token_hash = ? AND rt.expires_at > datetime('now') AND rt.is_revoked = 0 AND u.is_active = 1
+      WHERE rt.token_hash = ? AND rt.is_revoked = 0 AND u.is_active = 1
     `, [tokenHash]);
 
+    console.log('🔍 [Refresh Debug] Current time:', new Date().toISOString());
+    console.log('🔍 [Refresh Debug] Token info:', storedToken ? {
+      expires_at: storedToken.expires_at,
+      created_at: storedToken.created_at,
+      is_revoked: storedToken.is_revoked
+    } : 'Token not found');
+
     if (!storedToken) {
+      console.log('🚫 [Refresh] Token not found in database');
       return res.status(401).json({
         success: false,
         error: 'Invalid or expired refresh token'
       });
     }
 
-    // Update last used timestamp
+    // Check expiration using JavaScript Date comparison
+    const tokenExpiresAt = new Date(storedToken.expires_at);
+    const currentTime = new Date();
+    
+    console.log('🔍 [Refresh Debug] Token expires at:', tokenExpiresAt.toISOString());
+    console.log('🔍 [Refresh Debug] Current time:', currentTime.toISOString());
+    console.log('🔍 [Refresh Debug] Is expired?', currentTime > tokenExpiresAt);
+
+    if (currentTime > tokenExpiresAt) {
+      console.log('🚫 [Refresh] Token expired via JavaScript check');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired refresh token'
+      });
+    }
+
+    // REFRESH TOKEN ROTATION: Revoke the old refresh token
     await dbRun(db, `
       UPDATE refresh_tokens 
-      SET last_used_at = CURRENT_TIMESTAMP 
+      SET is_revoked = 1, last_used_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `, [storedToken.id]);
 
     // Generate new access token
     const newAccessToken = generateAccessToken(storedToken.user_id);
+    
+    // Generate new refresh token
+    const newRefreshToken = generateRefreshToken();
+
+    // Store the new refresh token
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    await storeRefreshToken(storedToken.user_id, newRefreshToken, userAgent, ipAddress);
+
+    // Calculate expiration times for response
+    const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || '30s';
+    const refreshTokenExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '2m'; // 2 minutes for testing
+    
+    const now = Date.now();
+    const accessExpiresAt = new Date(now + parseTokenExpiry(accessTokenExpiresIn));
+    const refreshExpiresAt = new Date(now + parseTokenExpiry(refreshTokenExpiresIn));
 
     res.json({
       success: true,
       data: {
         accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
         user: {
           id: storedToken.user_id,
           username: storedToken.username,
           email: storedToken.email,
           full_name: storedToken.full_name,
           role: storedToken.role
+        },
+        expiresIn: {
+          accessToken: accessTokenExpiresIn,
+          refreshToken: refreshTokenExpiresIn,
+          accessExpiresAt: accessExpiresAt.toISOString(),
+          refreshExpiresAt: refreshExpiresAt.toISOString()
         }
       }
     });

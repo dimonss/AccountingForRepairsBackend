@@ -92,15 +92,11 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     };
 
     next();
-  } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Invalid token' 
-      });
-    }
+  } catch (error: any) {
+    console.log('🔍 [Middleware] JWT Error:', error.constructor.name, error.message);
     
     if (error instanceof jwt.TokenExpiredError) {
+      console.log('⏰ [Middleware] Token expired');
       return res.status(401).json({ 
         success: false, 
         error: 'Access token expired',
@@ -108,7 +104,16 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       });
     }
     
-    console.error('Authentication error:', error);
+    if (error instanceof jwt.JsonWebTokenError) {
+      console.log('❌ [Middleware] Invalid token:', error.message);
+      return res.status(401).json({
+        success: false, 
+        error: 'Invalid token',
+        code: 'INVALID_TOKEN'
+      });
+    }
+    
+    console.error('🚨 [Middleware] Authentication error:', error);
     return res.status(500).json({ 
       success: false, 
       error: 'Authentication failed' 
