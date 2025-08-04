@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
+    "start:prod": "pm2 start dist/index.js --name RepairsAccounting --interpreter /root/.nvm/versions/node/v24.5.0/bin/node",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
