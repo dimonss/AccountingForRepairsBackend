@@ -52,7 +52,7 @@ function dbRun(db: sqlite3.Database, query: string, params: any[] = []): Promise
   });
 }
 
-// GET /api/repairs - Get all repairs (authenticated users only)
+// GET /repairs - Get all repairs (authenticated users only)
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -76,7 +76,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/repairs/:id - Get single repair (authenticated users only)
+// GET /repairs/:id - Get single repair (authenticated users only)
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -104,7 +104,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/repairs - Create new repair (authenticated users only)
+// POST /repairs - Create new repair (authenticated users only)
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -154,7 +154,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/repairs/:id - Update repair (managers and admins only)
+// PUT /repairs/:id - Update repair (managers and admins only)
 router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -205,7 +205,7 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
   }
 });
 
-// DELETE /api/repairs/:id - Delete repair (managers and admins only)
+// DELETE /repairs/:id - Delete repair (managers and admins only)
 router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -223,7 +223,7 @@ router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Requ
   }
 });
 
-// PATCH /api/repairs/:id/status - Update repair status (authenticated users only)
+// PATCH /repairs/:id/status - Update repair status (authenticated users only)
 router.patch('/:id/status', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -265,7 +265,7 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
   }
 });
 
-// GET /api/repairs/:id/history - Get repair status history (authenticated users only)
+// GET /repairs/:id/history - Get repair status history (authenticated users only)
 router.get('/:id/history', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();

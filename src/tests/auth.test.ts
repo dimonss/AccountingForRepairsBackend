@@ -14,7 +14,7 @@ const createApp = () => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
-  app.use('/api/auth', authRoutes);
+  app.use('/auth', authRoutes);
   
   return app;
 };
@@ -26,10 +26,10 @@ describe('Authentication API Tests', () => {
     app = createApp();
   });
 
-  describe('POST /api/auth/login', () => {
+  describe('POST /auth/login', () => {
     it('should login successfully with correct credentials', async () => {
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: TEST_ADMIN.username,
           password: TEST_ADMIN.password
@@ -48,7 +48,7 @@ describe('Authentication API Tests', () => {
 
     it('should login with email instead of username', async () => {
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: TEST_ADMIN.email, // Using email as username
           password: TEST_ADMIN.password
@@ -63,7 +63,7 @@ describe('Authentication API Tests', () => {
 
     it('should reject login with incorrect password', async () => {
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: TEST_ADMIN.username,
           password: 'wrongpassword'
@@ -76,7 +76,7 @@ describe('Authentication API Tests', () => {
 
     it('should reject login with non-existent user', async () => {
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: 'nonexistent',
           password: 'password123'
@@ -89,7 +89,7 @@ describe('Authentication API Tests', () => {
 
     it('should require username and password', async () => {
       const response = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: TEST_ADMIN.username
           // Missing password
@@ -101,12 +101,12 @@ describe('Authentication API Tests', () => {
     });
   });
 
-  describe('GET /api/auth/me', () => {
+  describe('GET /auth/me', () => {
     it('should return current user info with valid token', async () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .get('/api/auth/me')
+        .get('/auth/me')
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -117,7 +117,7 @@ describe('Authentication API Tests', () => {
 
     it('should reject request without token', async () => {
       const response = await request(app)
-        .get('/api/auth/me')
+        .get('/auth/me')
         .expect(401);
 
       expect(response.body.success).toBe(false);
@@ -126,7 +126,7 @@ describe('Authentication API Tests', () => {
 
     it('should reject request with invalid token', async () => {
       const response = await request(app)
-        .get('/api/auth/me')
+        .get('/auth/me')
         .set('Authorization', 'Bearer invalid-token')
         .expect(401);
 
@@ -135,7 +135,7 @@ describe('Authentication API Tests', () => {
     });
   });
 
-  describe('POST /api/auth/register', () => {
+  describe('POST /auth/register', () => {
     it('should create new user successfully (admin only)', async () => {
       const { authHeader } = await getTestAdminAuth();
 
@@ -148,7 +148,7 @@ describe('Authentication API Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/auth/register')
         .set('Authorization', authHeader)
         .send(newUser)
         .expect(201);
@@ -172,7 +172,7 @@ describe('Authentication API Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/auth/register')
         .set('Authorization', authHeader)
         .send(newUser)
         .expect(403);
@@ -190,7 +190,7 @@ describe('Authentication API Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/auth/register')
         .set('Authorization', authHeader)
         .send(incompleteUser)
         .expect(400);
@@ -211,7 +211,7 @@ describe('Authentication API Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/auth/register')
         .set('Authorization', authHeader)
         .send(userWithWeakPassword)
         .expect(400);
@@ -232,7 +232,7 @@ describe('Authentication API Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/auth/register')
+        .post('/auth/register')
         .set('Authorization', authHeader)
         .send(userWithInvalidRole)
         .expect(400);
@@ -242,12 +242,12 @@ describe('Authentication API Tests', () => {
     });
   });
 
-  describe('GET /api/auth/users', () => {
+  describe('GET /auth/users', () => {
     it('should return all users for admin', async () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .get('/api/auth/users')
+        .get('/auth/users')
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -265,7 +265,7 @@ describe('Authentication API Tests', () => {
       const { authHeader } = await createTestEmployee();
 
       const response = await request(app)
-        .get('/api/auth/users')
+        .get('/auth/users')
         .set('Authorization', authHeader)
         .expect(403);
 
@@ -274,7 +274,7 @@ describe('Authentication API Tests', () => {
     });
   });
 
-  describe('POST /api/auth/change-password', () => {
+  describe('POST /auth/change-password', () => {
     it('should change password successfully', async () => {
       // Create a test employee to change password for
       const { authHeader, user } = await createTestEmployee({
@@ -283,7 +283,7 @@ describe('Authentication API Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/auth/change-password')
+        .post('/auth/change-password')
         .set('Authorization', authHeader)
         .send({
           currentPassword: 'oldpassword123',
@@ -296,7 +296,7 @@ describe('Authentication API Tests', () => {
 
       // Try to login with new password
       const loginResponse = await request(app)
-        .post('/api/auth/login')
+        .post('/auth/login')
         .send({
           username: user.username,
           password: 'newpassword123'
@@ -313,7 +313,7 @@ describe('Authentication API Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/auth/change-password')
+        .post('/auth/change-password')
         .set('Authorization', authHeader)
         .send({
           currentPassword: 'wrongpassword',
@@ -332,7 +332,7 @@ describe('Authentication API Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/auth/change-password')
+        .post('/auth/change-password')
         .set('Authorization', authHeader)
         .send({
           currentPassword: 'oldpassword123',

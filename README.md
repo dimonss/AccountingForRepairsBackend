@@ -117,15 +117,15 @@ DB_NAME_FOR_INSERT_MOCK_DATA=testDB.sqlite
 ## API Endpoints
 
 ### Health Check
-- `GET /api/health` - Server health status
+- `GET /health` - Server health status
 
 ### Repairs
-- `GET /api/repairs` - Get all repairs
-- `GET /api/repairs/:id` - Get specific repair by ID
-- `POST /api/repairs` - Create new repair
-- `PUT /api/repairs/:id` - Update existing repair
-- `DELETE /api/repairs/:id` - Delete repair
-- `PATCH /api/repairs/:id/status` - Update repair status
+- `GET /repairs` - Get all repairs
+- `GET /repairs/:id` - Get specific repair by ID
+- `POST /repairs` - Create new repair
+- `PUT /repairs/:id` - Update existing repair
+- `DELETE /repairs/:id` - Delete repair
+- `PATCH /repairs/:id/status` - Update repair status
 
 ## Database Schema
 

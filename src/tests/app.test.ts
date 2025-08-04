@@ -16,10 +16,10 @@ const createApp = () => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   
-  app.use('/api/auth', authRoutes);
-  app.use('/api/repairs', repairRoutes);
+  app.use('/auth', authRoutes);
+  app.use('/repairs', repairRoutes);
   
-  app.get('/api/health', (req, res) => {
+  app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'Server is running' });
   });
   
@@ -36,7 +36,7 @@ describe('API Integration Tests', () => {
   describe('Health Check', () => {
     it('should return health status', async () => {
       const response = await request(app)
-        .get('/api/health')
+        .get('/health')
         .expect(200);
 
       expect(response.body).toEqual({
@@ -49,7 +49,7 @@ describe('API Integration Tests', () => {
   describe('Authentication Required', () => {
     it('should reject unauthenticated requests to repairs endpoints', async () => {
       const response = await request(app)
-        .get('/api/repairs')
+        .get('/repairs')
         .expect(401);
 
       expect(response.body.success).toBe(false);
@@ -58,7 +58,7 @@ describe('API Integration Tests', () => {
 
     it('should reject requests with invalid token', async () => {
       const response = await request(app)
-        .get('/api/repairs')
+        .get('/repairs')
         .set('Authorization', 'Bearer invalid-token')
         .expect(401);
 
@@ -67,12 +67,12 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('GET /api/repairs', () => {
+  describe('GET /repairs', () => {
     it('should return empty array when no repairs exist', async () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .get('/api/repairs')
+        .get('/repairs')
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -90,7 +90,7 @@ describe('API Integration Tests', () => {
       await createRepairInDB({ client_name: 'Клиент 2' }, user.id);
 
       const response = await request(app)
-        .get('/api/repairs')
+        .get('/repairs')
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -105,7 +105,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('GET /api/repairs/:id', () => {
+  describe('GET /repairs/:id', () => {
     it('should return specific repair by id with user information', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const repair = await createRepairInDB({ client_name: 'Тест Клиент' }, user.id);
@@ -126,7 +126,7 @@ describe('API Integration Tests', () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .get('/api/repairs/999')
+        .get('/repairs/999')
         .set('Authorization', authHeader)
         .expect(404);
 
@@ -135,7 +135,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('POST /api/repairs', () => {
+  describe('POST /repairs', () => {
     it('should create new repair successfully and track creator', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const newRepair = createTestRepair({
@@ -144,7 +144,7 @@ describe('API Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/repairs')
+        .post('/repairs')
         .set('Authorization', authHeader)
         .send(newRepair)
         .expect(201);
@@ -170,7 +170,7 @@ describe('API Integration Tests', () => {
       };
 
       const response = await request(app)
-        .post('/api/repairs')
+        .post('/repairs')
         .set('Authorization', authHeader)
         .send(incompleteRepair)
         .expect(400);
@@ -188,7 +188,7 @@ describe('API Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/repairs')
+        .post('/repairs')
         .set('Authorization', authHeader)
         .send(repairWithOptionalFields)
         .expect(201);
@@ -197,7 +197,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('PUT /api/repairs/:id', () => {
+  describe('PUT /repairs/:id', () => {
     it('should update existing repair successfully (admin/manager only)', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const repair = await createRepairInDB({}, user.id);
@@ -250,7 +250,7 @@ describe('API Integration Tests', () => {
       const updates = createTestRepair();
 
       const response = await request(app)
-        .put('/api/repairs/999')
+        .put('/repairs/999')
         .set('Authorization', authHeader)
         .send(updates)
         .expect(404);
@@ -281,7 +281,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('DELETE /api/repairs/:id', () => {
+  describe('DELETE /repairs/:id', () => {
     it('should delete existing repair successfully (admin/manager only)', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const repair = await createRepairInDB({}, user.id);
@@ -319,7 +319,7 @@ describe('API Integration Tests', () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .delete('/api/repairs/999')
+        .delete('/repairs/999')
         .set('Authorization', authHeader)
         .expect(404);
 
@@ -328,7 +328,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('PATCH /api/repairs/:id/status', () => {
+  describe('PATCH /repairs/:id/status', () => {
     it('should update repair status successfully and track user', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const repair = await createRepairInDB({ repair_status: 'pending' }, user.id);
@@ -378,7 +378,7 @@ describe('API Integration Tests', () => {
       const { authHeader } = await getTestAdminAuth();
 
       const response = await request(app)
-        .patch('/api/repairs/999/status')
+        .patch('/repairs/999/status')
         .set('Authorization', authHeader)
         .send({ status: 'completed' })
         .expect(404);
@@ -404,7 +404,7 @@ describe('API Integration Tests', () => {
     });
   });
 
-  describe('GET /api/repairs/:id/history', () => {
+  describe('GET /repairs/:id/history', () => {
     it('should return repair status history with user information', async () => {
       const { authHeader, user } = await getTestAdminAuth();
       const repair = await createRepairInDB({ repair_status: 'pending' }, user.id);
@@ -459,7 +459,7 @@ describe('API Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/repairs')
+        .post('/repairs')
         .set('Authorization', authHeader)
         .send(repairData)
         .expect(201);
@@ -474,7 +474,7 @@ describe('API Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post('/api/repairs')
+        .post('/repairs')
         .set('Authorization', authHeader)
         .send(repairData)
         .expect(201);

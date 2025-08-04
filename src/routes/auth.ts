@@ -104,7 +104,7 @@ const cleanupExpiredTokens = async () => {
   `);
 };
 
-// POST /api/auth/register - Register new user (admin only)
+// POST /auth/register - Register new user (admin only)
 router.post('/register', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { username, email, password, full_name, role = 'employee' } = req.body;
@@ -178,7 +178,7 @@ router.post('/register', authenticateToken, requireAdmin, async (req: Request, r
   }
 });
 
-// POST /api/auth/login - Login user
+// POST /auth/login - Login user
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
@@ -273,7 +273,7 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/refresh - Refresh tokens
+// POST /auth/refresh - Refresh tokens
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
@@ -382,7 +382,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/logout - Logout user (revoke refresh token)
+// POST /auth/logout - Logout user (revoke refresh token)
 router.post('/logout', async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
@@ -412,7 +412,7 @@ router.post('/logout', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/logout-all - Logout from all devices
+// POST /auth/logout-all - Logout from all devices
 router.post('/logout-all', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -437,7 +437,7 @@ router.post('/logout-all', authenticateToken, async (req: Request, res: Response
   }
 });
 
-// GET /api/auth/sessions - Get active sessions (refresh tokens)
+// GET /auth/sessions - Get active sessions (refresh tokens)
 router.get('/sessions', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -462,7 +462,7 @@ router.get('/sessions', authenticateToken, async (req: Request, res: Response) =
   }
 });
 
-// DELETE /api/auth/sessions/:id - Revoke specific session
+// DELETE /auth/sessions/:id - Revoke specific session
 router.delete('/sessions/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const sessionId = parseInt(req.params.id);
@@ -494,7 +494,7 @@ router.delete('/sessions/:id', authenticateToken, async (req: Request, res: Resp
   }
 });
 
-// GET /api/auth/me - Get current user info
+// GET /auth/me - Get current user info
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   try {
     res.json({
@@ -512,7 +512,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/auth/users - Get all users (admin only)
+// GET /auth/users - Get all users (admin only)
 router.get('/users', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
@@ -536,7 +536,7 @@ router.get('/users', authenticateToken, requireAdmin, async (req: Request, res: 
   }
 });
 
-// PUT /api/auth/users/:id - Update user (admin only)
+// PUT /auth/users/:id - Update user (admin only)
 router.put('/users/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { full_name, role, is_active } = req.body;
@@ -586,7 +586,7 @@ router.put('/users/:id', authenticateToken, requireAdmin, async (req: Request, r
   }
 });
 
-// POST /api/auth/change-password - Change password
+// POST /auth/change-password - Change password
 router.post('/change-password', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;

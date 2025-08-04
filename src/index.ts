@@ -23,10 +23,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/repairs', repairRoutes);
+app.use('/auth', authRoutes);
+app.use('/repairs', repairRoutes);
 
-app.get('/api/health', (req, res) => {
+app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
