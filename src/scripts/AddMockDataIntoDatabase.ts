@@ -1,11 +1,9 @@
 import sqlite3 from 'sqlite3';
-import path from 'path';
 import dotenv from 'dotenv';
+import { initDatabase, closeDatabase } from '../database/init';
 
 // Load environment variables from .env file
 dotenv.config();
-
-const DB_PATH = path.join(process.cwd(), process.env.DB_NAME_FOR_INSERT_MOCK_DATA || 'testDB.sqlite');
 // Mock data for repairs
 const mockRepairs = [
   {
@@ -231,24 +229,25 @@ function dbGet(db: sqlite3.Database, query: string, params: any[] = []): Promise
 async function addMockDataIntoDatabase() {
   console.log('🌱 Starting database seeding...');
   
-  const db = new sqlite3.Database(DB_PATH, (err) => {
-    if (err) {
-      console.error('❌ Error connecting to database:', err.message);
-      return;
-    }
-    console.log('✅ Connected to SQLite database');
-  });
+  // Initialize database with all tables
+  await initDatabase();
+  console.log('✅ Database initialized');
+  
+  // Get database instance for operations
+  const { getDatabase } = await import('../database/init');
+  const db = getDatabase();
 
   try {
     // Clear existing data
     console.log('🧹 Clearing existing data...');
+    await dbRun(db, 'DELETE FROM repair_photos');
     await dbRun(db, 'DELETE FROM repair_parts');
     await dbRun(db, 'DELETE FROM repair_status_history');
     await dbRun(db, 'DELETE FROM repairs');
     await dbRun(db, 'DELETE FROM parts');
     
     // Reset auto-increment counters
-    await dbRun(db, 'DELETE FROM sqlite_sequence WHERE name IN ("repairs", "parts", "repair_parts", "repair_status_history")');
+    await dbRun(db, 'DELETE FROM sqlite_sequence WHERE name IN ("repairs", "parts", "repair_parts", "repair_status_history", "repair_photos")');
 
     // Insert parts
     console.log('📦 Inserting parts...');
@@ -352,13 +351,7 @@ async function addMockDataIntoDatabase() {
   } catch (error) {
     console.error('❌ Error seeding database:', error);
   } finally {
-    db.close((err) => {
-      if (err) {
-        console.error('❌ Error closing database:', err.message);
-      } else {
-        console.log('✅ Database connection closed');
-      }
-    });
+    await closeDatabase();
   }
 }
 

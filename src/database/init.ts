@@ -143,6 +143,23 @@ async function createTables(): Promise<void> {
       )
     `);
 
+    // Create repair_photos table
+    await run(`
+      CREATE TABLE IF NOT EXISTS repair_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repair_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        uploaded_by INTEGER,
+        FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
+        FOREIGN KEY (uploaded_by) REFERENCES users (id)
+      )
+    `);
+
+    // Create index for repair_photos
+    await run(`CREATE INDEX IF NOT EXISTS idx_repair_photos_repair_id ON repair_photos(repair_id)`);
+
     if (process.env.NODE_ENV !== 'test') {
       console.log('Database tables created successfully');
     }
