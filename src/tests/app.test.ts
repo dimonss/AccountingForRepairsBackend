@@ -111,7 +111,7 @@ describe('API Integration Tests', () => {
       const repair = await createRepairInDB({ client_name: 'Тест Клиент' }, user.id);
 
       const response = await request(app)
-        .get(`/api/repairs/${repair.id}`)
+        .get(`/repairs/${repair.id}`)
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -212,7 +212,7 @@ describe('API Integration Tests', () => {
       };
 
       const response = await request(app)
-        .put(`/api/repairs/${repair.id}`)
+        .put(`/repairs/${repair.id}`)
         .set('Authorization', authHeader)
         .send(updates)
         .expect(200);
@@ -236,7 +236,7 @@ describe('API Integration Tests', () => {
       const updates = createTestRepair({ client_name: 'Should Not Update' });
 
       const response = await request(app)
-        .put(`/api/repairs/${repair.id}`)
+        .put(`/repairs/${repair.id}`)
         .set('Authorization', employeeAuth)
         .send(updates)
         .expect(403);
@@ -269,7 +269,7 @@ describe('API Integration Tests', () => {
       };
 
       await request(app)
-        .put(`/api/repairs/${repair.id}`)
+        .put(`/repairs/${repair.id}`)
         .set('Authorization', authHeader)
         .send(updates)
         .expect(200);
@@ -287,7 +287,7 @@ describe('API Integration Tests', () => {
       const repair = await createRepairInDB({}, user.id);
 
       const response = await request(app)
-        .delete(`/api/repairs/${repair.id}`)
+        .delete(`/repairs/${repair.id}`)
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -307,7 +307,7 @@ describe('API Integration Tests', () => {
       const repair = await createRepairInDB({}, adminUser.id);
 
       const response = await request(app)
-        .delete(`/api/repairs/${repair.id}`)
+        .delete(`/repairs/${repair.id}`)
         .set('Authorization', employeeAuth)
         .expect(403);
 
@@ -339,7 +339,7 @@ describe('API Integration Tests', () => {
       };
 
       const response = await request(app)
-        .patch(`/api/repairs/${repair.id}/status`)
+        .patch(`/repairs/${repair.id}/status`)
         .set('Authorization', authHeader)
         .send(statusUpdate)
         .expect(200);
@@ -365,7 +365,7 @@ describe('API Integration Tests', () => {
       const repair = await createRepairInDB({}, user.id);
 
       const response = await request(app)
-        .patch(`/api/repairs/${repair.id}/status`)
+        .patch(`/repairs/${repair.id}/status`)
         .set('Authorization', authHeader)
         .send({})
         .expect(400);
@@ -392,7 +392,7 @@ describe('API Integration Tests', () => {
       const repair = await createRepairInDB({ repair_status: 'in_progress' }, user.id);
 
       await request(app)
-        .patch(`/api/repairs/${repair.id}/status`)
+        .patch(`/repairs/${repair.id}/status`)
         .set('Authorization', authHeader)
         .send({ status: 'completed' })
         .expect(200);
@@ -411,12 +411,12 @@ describe('API Integration Tests', () => {
 
       // Update status to create history
       await request(app)
-        .patch(`/api/repairs/${repair.id}/status`)
+        .patch(`/repairs/${repair.id}/status`)
         .set('Authorization', authHeader)
         .send({ status: 'in_progress', notes: 'Test history' });
 
       const response = await request(app)
-        .get(`/api/repairs/${repair.id}/history`)
+        .get(`/repairs/${repair.id}/history`)
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -441,7 +441,7 @@ describe('API Integration Tests', () => {
         const status = validStatuses[i];
         
         const response = await request(app)
-          .patch(`/api/repairs/${repair.id}/status`)
+          .patch(`/repairs/${repair.id}/status`)
           .set('Authorization', authHeader)
           .send({ status })
           .expect(200);
