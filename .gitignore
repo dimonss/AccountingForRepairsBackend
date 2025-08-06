@@ -69,3 +69,6 @@ Thumbs.db
 .idea/*
 !.idea/dataSources.xml
 !.idea/sqldialects.xml
+
+# Static
+uploads

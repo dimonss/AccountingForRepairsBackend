@@ -90,4 +90,19 @@ CREATE TABLE IF NOT EXISTS repair_parts (
   cost_per_unit DECIMAL(10,2) NOT NULL,
   FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
   FOREIGN KEY (part_id) REFERENCES parts (id)
-); 
+);
+
+-- Repair photos table
+CREATE TABLE IF NOT EXISTS repair_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repair_id INTEGER NOT NULL,
+  filename TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  uploaded_by INTEGER,
+  FOREIGN KEY (repair_id) REFERENCES repairs (id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users (id)
+);
+
+-- Index for performance on photo lookups
+CREATE INDEX IF NOT EXISTS idx_repair_photos_repair_id ON repair_photos(repair_id); 

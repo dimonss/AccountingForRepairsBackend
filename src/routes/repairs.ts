@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { getDatabase } from '../database/init';
 import { authenticateToken, requireManagerOrAdmin } from '../middleware/auth';
 import sqlite3 from 'sqlite3';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 
@@ -22,6 +24,15 @@ interface Repair {
   labor_cost?: number;
   assigned_to?: number;
   notes?: string;
+  photos?: RepairPhoto[];
+}
+
+interface RepairPhoto {
+  id?: number;
+  repair_id: number;
+  filename: string;
+  url: string;
+  uploaded_at?: string;
 }
 
 // Helper functions to promisify SQLite operations
@@ -52,6 +63,24 @@ function dbRun(db: sqlite3.Database, query: string, params: any[] = []): Promise
   });
 }
 
+// Get photos for a repair
+async function getRepairPhotos(db: sqlite3.Database, repairId: number): Promise<RepairPhoto[]> {
+  const photos = await dbAll(db, `
+    SELECT id, repair_id, filename, file_path, uploaded_at
+    FROM repair_photos 
+    WHERE repair_id = ? 
+    ORDER BY uploaded_at ASC
+  `, [repairId]);
+  
+  return photos.map((photo: any) => ({
+    id: photo.id,
+    repair_id: photo.repair_id,
+    filename: photo.filename,
+    url: `/photos/${photo.filename}`,
+    uploaded_at: photo.uploaded_at
+  }));
+}
+
 // GET /repairs - Get all repairs (authenticated users only)
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -69,7 +98,15 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       ORDER BY r.created_at DESC
     `);
     
-    res.json({ success: true, data: repairs });
+    // Add photos to each repair
+    const repairsWithPhotos = await Promise.all(
+      repairs.map(async (repair: any) => {
+        const photos = await getRepairPhotos(db, repair.id);
+        return { ...repair, photos };
+      })
+    );
+    
+    res.json({ success: true, data: repairsWithPhotos });
   } catch (error) {
     console.error('Error fetching repairs:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -97,7 +134,11 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Repair not found' });
     }
     
-    res.json({ success: true, data: repair });
+    // Add photos to repair
+    const photos = await getRepairPhotos(db, repair.id);
+    const repairWithPhotos = { ...repair, photos };
+    
+    res.json({ success: true, data: repairWithPhotos });
   } catch (error) {
     console.error('Error fetching repair:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -282,6 +323,102 @@ router.get('/:id/history', authenticateToken, async (req: Request, res: Response
     res.json({ success: true, data: history });
   } catch (error) {
     console.error('Error fetching repair history:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /repairs/:id/photos - Upload photos for repair
+router.post('/:id/photos', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const repairId = req.params.id;
+    const { photos } = req.body;
+    
+    // Verify repair exists
+    const repair = await dbGet(db, 'SELECT id FROM repairs WHERE id = ?', [repairId]);
+    if (!repair) {
+      return res.status(404).json({ success: false, error: 'Repair not found' });
+    }
+    
+    if (!photos || !Array.isArray(photos)) {
+      return res.status(400).json({ success: false, error: 'Photos array is required' });
+    }
+    
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'repairs');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    
+    const savedPhotos = [];
+    
+    for (const photo of photos) {
+      if (!photo.filename || !photo.url) {
+        continue;
+      }
+      
+      // Save base64 data to file
+      if (photo.url.startsWith('data:image/')) {
+        const base64Data = photo.url.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filePath = path.join(uploadsDir, photo.filename);
+        
+        fs.writeFileSync(filePath, buffer);
+        
+        // Save to database
+        const result = await dbRun(db, `
+          INSERT INTO repair_photos (repair_id, filename, file_path, uploaded_by)
+          VALUES (?, ?, ?, ?)
+        `, [repairId, photo.filename, filePath, req.user!.id]);
+        
+        savedPhotos.push({
+          id: result.lastID,
+          repair_id: repairId,
+          filename: photo.filename,
+          url: `/photos/${photo.filename}`
+        });
+      }
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      data: savedPhotos,
+      message: `${savedPhotos.length} photos uploaded successfully` 
+    });
+  } catch (error) {
+    console.error('Error uploading photos:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+
+// DELETE /repairs/:id/photos/:photoId - Delete photo
+router.delete('/:id/photos/:photoId', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const { id: repairId, photoId } = req.params;
+    
+    // Get photo info
+    const photo = await dbGet(db, `
+      SELECT * FROM repair_photos 
+      WHERE id = ? AND repair_id = ?
+    `, [photoId, repairId]);
+    
+    if (!photo) {
+      return res.status(404).json({ success: false, error: 'Photo not found' });
+    }
+    
+    // Delete file
+    if (fs.existsSync(photo.file_path)) {
+      fs.unlinkSync(photo.file_path);
+    }
+    
+    // Delete from database
+    await dbRun(db, 'DELETE FROM repair_photos WHERE id = ?', [photoId]);
+    
+    res.json({ success: true, message: 'Photo deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting photo:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
