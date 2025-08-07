@@ -5,6 +5,7 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { logRepairOperation, logPhotoOperation, logFileOperation, logError } from '../utils/logger';
+import { PHOTOS_CONFIG } from '../config/photos';
 
 const router = Router();
 
@@ -77,7 +78,7 @@ async function getRepairPhotos(db: sqlite3.Database, repairId: number): Promise<
     id: photo.id,
     repair_id: photo.repair_id,
     filename: photo.filename,
-    url: `/photos/${photo.filename}`,
+    url: PHOTOS_CONFIG.getPhotoUrl(photo.filename),
     uploaded_at: photo.uploaded_at
   }));
 }
@@ -427,7 +428,7 @@ router.post('/:id/photos', authenticateToken, async (req: Request, res: Response
             id: result.lastID,
             repair_id: repairId,
             filename: photo.filename,
-            url: `/photos/${photo.filename}`
+            url: PHOTOS_CONFIG.getPhotoUrl(photo.filename)
           });
         }
     }
