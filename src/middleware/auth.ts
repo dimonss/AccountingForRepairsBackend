@@ -31,7 +31,7 @@ function dbGet(db: any, query: string, params: any[] = []): Promise<any> {
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({ 
@@ -40,14 +40,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       });
     }
 
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      console.error('JWT_SECRET not configured');
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Server configuration error' 
-      });
-    }
+    const jwtSecret = process.env.JWT_SECRET!;
 
     // Verify token
     const decoded = jwt.verify(token, jwtSecret) as any;

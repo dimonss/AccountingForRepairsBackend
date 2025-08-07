@@ -445,6 +445,11 @@ describe('API Integration Tests', () => {
           .expect(200);
 
         expect(response.body.success).toBe(true);
+        
+        // Verify the status was actually updated
+        const db = getDatabase();
+        const updatedRepair = await dbGet(db, 'SELECT repair_status FROM repairs WHERE id = ?', [repair.id]);
+        expect(updatedRepair.repair_status).toBe(status);
       }
     });
 

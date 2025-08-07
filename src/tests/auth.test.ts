@@ -3,7 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import authRoutes from '../routes/auth';
-import { TEST_ADMIN, getTestAdminAuth, createTestEmployee } from './testUtils';
+import { TEST_ADMIN, getTestAdminAuth, createTestEmployee, dbGet } from './testUtils';
+import { getDatabase } from '../database/init';
 
 // Create test app
 const createApp = () => {
@@ -262,6 +263,7 @@ describe('Authentication API Tests', () => {
     });
 
     it('should reject request from non-admin user', async () => {
+      // Create a test employee and get their auth
       const { authHeader } = await createTestEmployee();
 
       const response = await request(app)
@@ -277,10 +279,17 @@ describe('Authentication API Tests', () => {
   describe('POST /auth/change-password', () => {
     it('should change password successfully', async () => {
       // Create a test employee to change password for
+      const timestamp = Date.now();
       const { authHeader, user } = await createTestEmployee({
-        username: 'changepasstest',
+        username: `changepasstest_${timestamp}`,
         password: 'oldpassword123'
       });
+
+      // Verify user was created properly
+      const db = getDatabase();
+      const createdUser = await dbGet(db, 'SELECT * FROM users WHERE id = ?', [user.id]);
+      expect(createdUser).toBeDefined();
+      expect(createdUser.username).toBe(user.username);
 
       const response = await request(app)
         .post('/auth/change-password')
@@ -307,8 +316,9 @@ describe('Authentication API Tests', () => {
     });
 
     it('should reject with incorrect current password', async () => {
+      const timestamp = Date.now();
       const { authHeader } = await createTestEmployee({
-        username: 'wrongcurrentpass',
+        username: `wrongcurrentpass_${timestamp}`,
         password: 'correctpassword'
       });
 
@@ -326,8 +336,9 @@ describe('Authentication API Tests', () => {
     });
 
     it('should reject weak new password', async () => {
+      const timestamp = Date.now();
       const { authHeader } = await createTestEmployee({
-        username: 'weaknewpass',
+        username: `weaknewpass_${timestamp}`,
         password: 'oldpassword123'
       });
 
