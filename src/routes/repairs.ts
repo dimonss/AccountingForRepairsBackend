@@ -250,14 +250,46 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
 router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
+    const repairId = req.params.id;
+    
+    // Get all photos for this repair before deleting
+    const photos = await dbAll(db, `
+      SELECT filename, file_path FROM repair_photos 
+      WHERE repair_id = ?
+    `, [repairId]);
+    
+    // Delete repair (this will cascade delete repair_photos due to FOREIGN KEY)
     // language=SQL
-    const result = await dbRun(db, 'DELETE FROM repairs WHERE id = ?', [req.params.id]);
+    const result = await dbRun(db, 'DELETE FROM repairs WHERE id = ?', [repairId]);
 
     if (result.changes === 0) {
       return res.status(404).json({ success: false, error: 'Repair not found' });
     }
 
-    res.json({ success: true, message: 'Repair deleted successfully' });
+    // Delete photo files from disk
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'repairs');
+    let deletedFilesCount = 0;
+    
+    for (const photo of photos) {
+      try {
+        const filePath = path.join(uploadsDir, photo.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          deletedFilesCount++;
+          console.log(`🗑️ Deleted photo file: ${photo.filename}`);
+        }
+      } catch (fileError) {
+        console.error(`Error deleting photo file ${photo.filename}:`, fileError);
+        // Continue with other files even if one fails
+      }
+    }
+    
+    console.log(`🗑️ Deleted repair ${repairId} with ${deletedFilesCount} photo files`);
+
+    res.json({ 
+      success: true, 
+      message: `Repair deleted successfully. ${deletedFilesCount} photo files removed.` 
+    });
   } catch (error) {
     console.error('Error deleting repair:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
