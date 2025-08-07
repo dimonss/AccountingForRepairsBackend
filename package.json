@@ -15,7 +15,8 @@
     "create-admin": "ts-node src/scripts/createAdmin.ts",
     "create-default-admin": "ts-node src/scripts/createDefaultAdmin.ts",
     "add-mock-data": "ts-node src/scripts/AddMockDataIntoDatabase.ts",
-    "generate-defauil-env": "node scripts/generateDefaultEnv.js"
+    "generate-defauil-env": "node scripts/generateDefaultEnv.js",
+    "logs:cleanup": "ts-node src/scripts/cleanupLogs.ts"
   },
   "keywords": [
     "repair",
@@ -35,7 +36,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

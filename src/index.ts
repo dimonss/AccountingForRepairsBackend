@@ -7,6 +7,8 @@ import path from 'path';
 import { initDatabase } from './database/init';
 import repairRoutes from './routes/repairs';
 import authRoutes from './routes/auth';
+import { requestLogger, errorLogger, securityLogger } from './middleware/logging';
+import { logInfo, logError } from './utils/logger';
 
 dotenv.config();
 
@@ -22,6 +24,10 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '5mb' })); // Увеличиваем лимит для base64 изображений
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Логирование
+app.use(securityLogger);
+app.use(requestLogger);
 
 // Static files for photo uploads - serve repair photos
 // URL: /photos/{filename} → uploads/repairs/{filename}
@@ -80,9 +86,9 @@ app.use('/photos', (req, res, next) => {
           res.status(403).json({ success: false, error: 'Access denied' });
         } else if (nodeErr.code === 'EPIPE') {
           // Client disconnected, don't try to send response
-          console.log('Client disconnected while serving photo');
+          logInfo('Client disconnected while serving photo');
         } else {
-          console.error('Error serving photo:', err);
+          logError('Error serving photo', err);
           res.status(500).json({ success: false, error: 'Internal server error' });
         }
       }
@@ -100,17 +106,25 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// Обработчик ошибок
+app.use(errorLogger);
+
 // Initialize database and start server
 async function startServer() {
   try {
     await initDatabase();
     app.listen(PORT, () => {
+      logInfo(`Server started successfully on port ${PORT}`, {
+        environment: process.env.NODE_ENV || 'development',
+        port: PORT
+      });
       console.log(`Server is running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('🔒 Authentication is enabled');
       console.log('📋 Create your first admin user using: npm run create-admin');
     });
   } catch (error) {
+    logError('Failed to start server', error);
     console.error('Failed to start server:', error);
     process.exit(1);
   }

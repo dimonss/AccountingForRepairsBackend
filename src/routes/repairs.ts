@@ -4,6 +4,7 @@ import { authenticateToken, requireManagerOrAdmin } from '../middleware/auth';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { logRepairOperation, logPhotoOperation, logFileOperation, logError } from '../utils/logger';
 
 const router = Router();
 
@@ -251,6 +252,7 @@ router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Requ
   try {
     const db = getDatabase();
     const repairId = req.params.id;
+    const userId = (req as any).user.id;
     
     // Get all photos for this repair before deleting
     const photos = await dbAll(db, `
@@ -258,11 +260,16 @@ router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Requ
       WHERE repair_id = ?
     `, [repairId]);
     
+    logRepairOperation('delete_repair_started', parseInt(repairId), userId, {
+      photoCount: photos.length
+    });
+    
     // Delete repair (this will cascade delete repair_photos due to FOREIGN KEY)
     // language=SQL
     const result = await dbRun(db, 'DELETE FROM repairs WHERE id = ?', [repairId]);
 
     if (result.changes === 0) {
+      logRepairOperation('delete_repair_not_found', parseInt(repairId), userId);
       return res.status(404).json({ success: false, error: 'Repair not found' });
     }
 
@@ -276,22 +283,25 @@ router.delete('/:id', authenticateToken, requireManagerOrAdmin, async (req: Requ
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
           deletedFilesCount++;
-          console.log(`🗑️ Deleted photo file: ${photo.filename}`);
+          logFileOperation('delete_photo_file', photo.filename, filePath, { repairId });
         }
       } catch (fileError) {
-        console.error(`Error deleting photo file ${photo.filename}:`, fileError);
+        logError(`Error deleting photo file ${photo.filename}`, fileError);
         // Continue with other files even if one fails
       }
     }
     
-    console.log(`🗑️ Deleted repair ${repairId} with ${deletedFilesCount} photo files`);
+    logRepairOperation('delete_repair_completed', parseInt(repairId), userId, {
+      deletedFilesCount,
+      totalPhotos: photos.length
+    });
 
     res.json({ 
       success: true, 
       message: `Repair deleted successfully. ${deletedFilesCount} photo files removed.` 
     });
   } catch (error) {
-    console.error('Error deleting repair:', error);
+    logError('Error deleting repair', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
@@ -389,27 +399,37 @@ router.post('/:id/photos', authenticateToken, async (req: Request, res: Response
         continue;
       }
       
-      // Save base64 data to file
-      if (photo.url.startsWith('data:image/')) {
-        const base64Data = photo.url.split(',')[1];
-        const buffer = Buffer.from(base64Data, 'base64');
-        const filePath = path.join(uploadsDir, photo.filename);
-        
-        fs.writeFileSync(filePath, buffer);
-        
-        // Save to database
-        const result = await dbRun(db, `
-          INSERT INTO repair_photos (repair_id, filename, file_path, uploaded_by)
-          VALUES (?, ?, ?, ?)
-        `, [repairId, photo.filename, filePath, req.user!.id]);
-        
-        savedPhotos.push({
-          id: result.lastID,
-          repair_id: repairId,
-          filename: photo.filename,
-          url: `/photos/${photo.filename}`
-        });
-      }
+              // Save base64 data to file
+        if (photo.url.startsWith('data:image/')) {
+          const base64Data = photo.url.split(',')[1];
+          const buffer = Buffer.from(base64Data, 'base64');
+          const filePath = path.join(uploadsDir, photo.filename);
+          
+          fs.writeFileSync(filePath, buffer);
+          
+          logFileOperation('save_photo_file', photo.filename, filePath, { 
+            repairId, 
+            fileSize: buffer.length 
+          });
+          
+          // Save to database
+          const result = await dbRun(db, `
+            INSERT INTO repair_photos (repair_id, filename, file_path, uploaded_by)
+            VALUES (?, ?, ?, ?)
+          `, [repairId, photo.filename, filePath, req.user!.id]);
+          
+          logPhotoOperation('upload_photo', parseInt(repairId), photo.filename, req.user!.id, {
+            photoId: result.lastID,
+            fileSize: buffer.length
+          });
+          
+          savedPhotos.push({
+            id: result.lastID,
+            repair_id: repairId,
+            filename: photo.filename,
+            url: `/photos/${photo.filename}`
+          });
+        }
     }
     
     res.status(201).json({ 
@@ -443,10 +463,18 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req: Request, re
     // Delete file
     if (fs.existsSync(photo.file_path)) {
       fs.unlinkSync(photo.file_path);
+      logFileOperation('delete_photo_file', photo.filename, photo.file_path, { 
+        repairId, 
+        photoId 
+      });
     }
     
     // Delete from database
     await dbRun(db, 'DELETE FROM repair_photos WHERE id = ?', [photoId]);
+    
+    logPhotoOperation('delete_photo', parseInt(repairId), photo.filename, req.user!.id, {
+      photoId
+    });
     
     res.json({ success: true, message: 'Photo deleted successfully' });
   } catch (error) {
