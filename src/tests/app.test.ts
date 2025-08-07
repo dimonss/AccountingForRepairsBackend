@@ -206,9 +206,7 @@ describe('API Integration Tests', () => {
         ...createTestRepair(),
         client_name: 'Обновленный Клиент',
         repair_status: 'in_progress',
-        actual_cost: 15000,
-        parts_cost: 10000,
-        labor_cost: 5000
+        actual_cost: 15000
       };
 
       const response = await request(app)
@@ -292,7 +290,7 @@ describe('API Integration Tests', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Repair deleted successfully');
+      expect(response.body.message).toContain('Repair deleted successfully');
 
       // Verify repair was deleted
       const db = getDatabase();

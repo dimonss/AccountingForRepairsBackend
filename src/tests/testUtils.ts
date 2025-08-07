@@ -166,13 +166,13 @@ export async function createRepairInDB(repairData: any = {}, createdByUserId?: n
     INSERT INTO repairs (
       device_type, brand, model, serial_number, client_name, 
       client_phone, client_email, issue_description, estimated_cost, 
-      assigned_to, created_by, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_by, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     repair.device_type, repair.brand, repair.model, repair.serial_number,
     repair.client_name, repair.client_phone, repair.client_email,
     repair.issue_description, repair.estimated_cost,
-    repair.assigned_to || null, createdByUserId, repair.notes
+    createdByUserId, repair.notes
   ]);
   
   return { id: result.lastID, ...repair, created_by: createdByUserId };

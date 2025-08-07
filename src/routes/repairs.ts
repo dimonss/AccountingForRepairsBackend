@@ -22,9 +22,6 @@ interface Repair {
   repair_status: 'pending' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled';
   estimated_cost?: number;
   actual_cost?: number;
-  parts_cost?: number;
-  labor_cost?: number;
-  assigned_to?: number;
   notes?: string;
   photos?: RepairPhoto[];
 }
@@ -91,12 +88,9 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     const repairs = await dbAll(db, `
       SELECT r.*, 
              u1.username as created_by_username,
-             u1.full_name as created_by_name,
-             u2.username as assigned_to_username,
-             u2.full_name as assigned_to_name
+             u1.full_name as created_by_name
       FROM repairs r
       LEFT JOIN users u1 ON r.created_by = u1.id
-      LEFT JOIN users u2 ON r.assigned_to = u2.id
       ORDER BY r.created_at DESC
     `);
     
@@ -123,12 +117,9 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
     const repair = await dbGet(db, `
       SELECT r.*, 
              u1.username as created_by_username,
-             u1.full_name as created_by_name,
-             u2.username as assigned_to_username,
-             u2.full_name as assigned_to_name
+             u1.full_name as created_by_name
       FROM repairs r
       LEFT JOIN users u1 ON r.created_by = u1.id
-      LEFT JOIN users u2 ON r.assigned_to = u2.id
       WHERE r.id = ?
     `, [req.params.id]);
     
@@ -162,7 +153,6 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       client_email,
       issue_description,
       estimated_cost,
-      assigned_to,
       notes
     }: Repair = req.body;
 
@@ -179,12 +169,12 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       INSERT INTO repairs (
         device_type, brand, model, serial_number, client_name, 
         client_phone, client_email, issue_description, estimated_cost, 
-        assigned_to, created_by, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_by, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       device_type, brand, model, serial_number, client_name,
       client_phone, client_email, issue_description, estimated_cost,
-      assigned_to, req.user!.id, notes
+      req.user!.id, notes
     ]);
 
     res.status(201).json({ 
@@ -214,9 +204,6 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
       repair_status,
       estimated_cost,
       actual_cost,
-      parts_cost,
-      labor_cost,
-      assigned_to,
       notes
     }: Repair = req.body;
 
@@ -226,14 +213,14 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
         device_type = ?, brand = ?, model = ?, serial_number = ?,
         client_name = ?, client_phone = ?, client_email = ?,
         issue_description = ?, repair_status = ?, estimated_cost = ?,
-        actual_cost = ?, parts_cost = ?, labor_cost = ?, assigned_to = ?, notes = ?,
+        actual_cost = ?, notes = ?,
         updated_at = CURRENT_TIMESTAMP,
         completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
       WHERE id = ?
     `, [
       device_type, brand, model, serial_number, client_name,
       client_phone, client_email, issue_description, repair_status,
-      estimated_cost, actual_cost, parts_cost, labor_cost, assigned_to, notes,
+      estimated_cost, actual_cost, notes,
       repair_status, req.params.id
     ]);
 

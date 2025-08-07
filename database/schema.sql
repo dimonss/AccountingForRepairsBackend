@@ -44,15 +44,11 @@ CREATE TABLE IF NOT EXISTS repairs (
   repair_status TEXT NOT NULL DEFAULT 'pending',
   estimated_cost DECIMAL(10,2),
   actual_cost DECIMAL(10,2),
-  parts_cost DECIMAL(10,2) DEFAULT 0,
-  labor_cost DECIMAL(10,2) DEFAULT 0,
-  assigned_to INTEGER,
   created_by INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME,
   notes TEXT,
-  FOREIGN KEY (assigned_to) REFERENCES users (id),
   FOREIGN KEY (created_by) REFERENCES users (id)
 );
 

@@ -31,8 +31,7 @@ const mockRepairs = [
     repair_status: 'in_progress',
     estimated_cost: 25000.00,
     actual_cost: 22500.00,
-    parts_cost: 18000.00,
-    labor_cost: 4500.00,
+
     notes: 'Заменена материнская плата'
   },
   {
@@ -60,8 +59,7 @@ const mockRepairs = [
     repair_status: 'completed',
     estimated_cost: 8000.00,
     actual_cost: 7500.00,
-    parts_cost: 5000.00,
-    labor_cost: 2500.00,
+
     notes: 'Заменена батарея, проведена диагностика'
   },
   {
@@ -115,8 +113,7 @@ const mockRepairs = [
     repair_status: 'completed',
     estimated_cost: 20000.00,
     actual_cost: 18000.00,
-    parts_cost: 15000.00,
-    labor_cost: 3000.00,
+
     notes: 'Заменена матрица, гарантия 6 месяцев'
   },
   {
@@ -272,14 +269,14 @@ async function addMockDataIntoDatabase() {
         INSERT INTO repairs (
           device_type, brand, model, serial_number, client_name, client_phone, 
           client_email, issue_description, repair_status, estimated_cost, 
-          actual_cost, parts_cost, labor_cost, notes,
+          actual_cost, notes,
           completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         repair.device_type, repair.brand, repair.model, repair.serial_number,
         repair.client_name, repair.client_phone, repair.client_email,
         repair.issue_description, repair.repair_status, repair.estimated_cost,
-        repair.actual_cost || null, repair.parts_cost || null, repair.labor_cost || null,
+        repair.actual_cost || null,
         repair.notes, repair.repair_status === 'completed' ? new Date().toISOString() : null
       ]);
       

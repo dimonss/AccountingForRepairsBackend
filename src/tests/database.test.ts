@@ -36,7 +36,6 @@ describe('Database Tests', () => {
       expect(columnNames).toContain('repair_status');
       expect(columnNames).toContain('created_at');
       expect(columnNames).toContain('updated_at');
-      expect(columnNames).toContain('assigned_to');
       expect(columnNames).toContain('created_by');
     });
 
@@ -71,7 +70,7 @@ describe('Database Tests', () => {
       
       // Check foreign keys for repairs table (should have user references)
       const repairsForeignKeys = await dbAll(db, "PRAGMA foreign_key_list(repairs)");
-      expect(repairsForeignKeys.length).toBeGreaterThanOrEqual(2); // assigned_to and created_by
+      expect(repairsForeignKeys.length).toBeGreaterThanOrEqual(1); // created_by
     });
   });
 
@@ -89,9 +88,9 @@ describe('Database Tests', () => {
 
       // Insert test repair with user references
       const result = await dbRun(db, `
-        INSERT INTO repairs (device_type, brand, model, client_name, client_phone, issue_description, created_by, assigned_to)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, ['smartphone', 'Apple', 'iPhone 14', 'John Doe', '+1234567890', 'Screen broken', userId, userId]);
+        INSERT INTO repairs (device_type, brand, model, client_name, client_phone, issue_description, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, ['smartphone', 'Apple', 'iPhone 14', 'John Doe', '+1234567890', 'Screen broken', userId]);
 
       expect(result.lastID).toBeGreaterThan(0);
 
@@ -100,7 +99,6 @@ describe('Database Tests', () => {
       expect(repair).toBeDefined();
       expect(repair.device_type).toBe('smartphone');
       expect(repair.created_by).toBe(userId);
-      expect(repair.assigned_to).toBe(userId);
     });
 
     it('should handle default values correctly', async () => {
@@ -122,8 +120,6 @@ describe('Database Tests', () => {
 
       const repair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [result.lastID]);
       expect(repair.repair_status).toBe('pending'); // Default value
-      expect(repair.parts_cost).toBe(0); // Default value
-      expect(repair.labor_cost).toBe(0); // Default value
       expect(repair.created_at).toBeDefined();
       expect(repair.updated_at).toBeDefined();
     });
@@ -220,15 +216,13 @@ describe('Database Tests', () => {
       const userId = userResult.lastID;
 
       const result = await dbRun(db, `
-        INSERT INTO repairs (device_type, brand, model, client_name, client_phone, issue_description, estimated_cost, actual_cost, parts_cost, labor_cost, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, ['laptop', 'HP', 'Pavilion', 'Alice Johnson', '+1234567893', 'Keyboard broken', 299.99, 250.50, 150.75, 99.75, userId]);
+        INSERT INTO repairs (device_type, brand, model, client_name, client_phone, issue_description, estimated_cost, actual_cost, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, ['laptop', 'HP', 'Pavilion', 'Alice Johnson', '+1234567893', 'Keyboard broken', 299.99, 250.50, userId]);
 
       const repair = await dbGet(db, 'SELECT * FROM repairs WHERE id = ?', [result.lastID]);
       expect(repair.estimated_cost).toBe(299.99);
       expect(repair.actual_cost).toBe(250.5);
-      expect(repair.parts_cost).toBe(150.75);
-      expect(repair.labor_cost).toBe(99.75);
     });
 
     it('should handle TEXT fields with special characters', async () => {
