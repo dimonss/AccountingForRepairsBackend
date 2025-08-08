@@ -112,6 +112,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
         r.client_email LIKE ? OR 
         r.serial_number LIKE ? OR 
         r.repair_number LIKE ? OR
+        r.device_type LIKE ? OR
         r.brand LIKE ? OR
         r.model LIKE ?
       )`);
