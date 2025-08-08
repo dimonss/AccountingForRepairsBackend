@@ -78,7 +78,13 @@ describe('API Integration Tests', () => {
 
       expect(response.body).toEqual({
         success: true,
-        data: []
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          totalPages: 0
+        }
       });
     });
 
@@ -96,12 +102,117 @@ describe('API Integration Tests', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(2);
+      expect(response.body.pagination).toEqual({
+        page: 1,
+        limit: 50,
+        total: 2,
+        totalPages: 1
+      });
       expect(response.body.data[0]).toHaveProperty('id');
       expect(response.body.data[0]).toHaveProperty('client_name');
       expect(response.body.data[0]).toHaveProperty('created_at');
       expect(response.body.data[0]).toHaveProperty('created_by_username');
       expect(response.body.data[0]).toHaveProperty('created_by_name');
       expect(response.body.data[0].created_by_username).toBe(user.username);
+    });
+
+    it('should filter repairs by search term', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+
+      // Create test repairs with different names
+      await createRepairInDB({ client_name: 'Иван Петров' }, user.id);
+      await createRepairInDB({ client_name: 'Мария Сидорова' }, user.id);
+      await createRepairInDB({ client_name: 'Алексей Козлов' }, user.id);
+
+      const response = await request(app)
+        .get('/repairs?search=Иван')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].client_name).toBe('Иван Петров');
+      expect(response.body.pagination.total).toBe(1);
+    });
+
+    it('should filter repairs by status', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+
+      // Create test repairs with different statuses
+      await createRepairInDB({ client_name: 'Клиент 1', repair_status: 'pending' }, user.id);
+      await createRepairInDB({ client_name: 'Клиент 2', repair_status: 'completed' }, user.id);
+      await createRepairInDB({ client_name: 'Клиент 3', repair_status: 'pending' }, user.id);
+
+      const response = await request(app)
+        .get('/repairs?status=pending')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      // Check that all returned repairs have pending status
+      expect(response.body.data.every((repair: any) => repair.repair_status === 'pending')).toBe(true);
+      // Check that we have at least 2 pending repairs (our new ones)
+      expect(response.body.data.length).toBeGreaterThanOrEqual(2);
+      expect(response.body.pagination.total).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should search by serial number and repair number', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+
+      // Create test repairs with serial and repair numbers
+      await createRepairInDB({ 
+        client_name: 'Клиент 1', 
+        serial_number: 'ABC123456',
+        repair_number: '123456'
+      }, user.id);
+      await createRepairInDB({ 
+        client_name: 'Клиент 2', 
+        serial_number: 'XYZ789012',
+        repair_number: '789012'
+      }, user.id);
+
+      // Search by serial number
+      const serialResponse = await request(app)
+        .get('/repairs?search=ABC123')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(serialResponse.body.success).toBe(true);
+      expect(serialResponse.body.data).toHaveLength(1);
+      expect(serialResponse.body.data[0].serial_number).toBe('ABC123456');
+
+      // Search by repair number
+      const repairResponse = await request(app)
+        .get('/repairs?search=789012')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(repairResponse.body.success).toBe(true);
+      expect(repairResponse.body.data).toHaveLength(1);
+      expect(repairResponse.body.data[0].repair_number).toBe('789012');
+    });
+
+    it('should support pagination', async () => {
+      const { authHeader, user } = await getTestAdminAuth();
+
+      // Create more than 2 repairs
+      await createRepairInDB({ client_name: 'Клиент 1' }, user.id);
+      await createRepairInDB({ client_name: 'Клиент 2' }, user.id);
+      await createRepairInDB({ client_name: 'Клиент 3' }, user.id);
+
+      const response = await request(app)
+        .get('/repairs?page=1&limit=2')
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.pagination).toEqual({
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2
+      });
     });
   });
 

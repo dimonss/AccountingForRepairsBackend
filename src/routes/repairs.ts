@@ -85,15 +85,73 @@ async function getRepairPhotos(db: sqlite3.Database, repairId: number): Promise<
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    // language=SQL
-    const repairs = await dbAll(db, `
+    
+    // Get query parameters for filtering and searching
+    const { 
+      search, 
+      status, 
+      page = '1', 
+      limit = '50',
+      sortBy = 'created_at',
+      sortOrder = 'DESC'
+    } = req.query;
+    
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 50;
+    const offset = (pageNum - 1) * limitNum;
+    
+    // Build WHERE clause for search and status filtering
+    let whereConditions = [];
+    let queryParams = [];
+    
+    if (search && typeof search === 'string') {
+      const searchTerm = `%${search}%`;
+      whereConditions.push(`(
+        r.client_name LIKE ? OR 
+        r.client_phone LIKE ? OR 
+        r.client_email LIKE ? OR 
+        r.serial_number LIKE ? OR 
+        r.repair_number LIKE ? OR
+        r.brand LIKE ? OR
+        r.model LIKE ?
+      )`);
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (status && status !== 'all' && typeof status === 'string') {
+      whereConditions.push('r.repair_status = ?');
+      queryParams.push(status);
+    }
+    
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    
+    // Validate sortBy to prevent SQL injection
+    const allowedSortFields = ['created_at', 'updated_at', 'client_name', 'repair_status', 'estimated_cost'];
+    const sortField = allowedSortFields.includes(sortBy as string) ? sortBy : 'created_at';
+    const sortDirection = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM repairs r
+      ${whereClause}
+    `;
+    const countResult = await dbGet(db, countQuery, queryParams);
+    const totalCount = countResult.total;
+    
+    // Get repairs with pagination
+    const repairsQuery = `
       SELECT r.*, 
              u1.username as created_by_username,
              u1.full_name as created_by_name
       FROM repairs r
       LEFT JOIN users u1 ON r.created_by = u1.id
-      ORDER BY r.created_at DESC
-    `);
+      ${whereClause}
+      ORDER BY r.${sortField} ${sortDirection}
+      LIMIT ? OFFSET ?
+    `;
+    
+    const repairs = await dbAll(db, repairsQuery, [...queryParams, limitNum, offset]);
     
     // Add photos to each repair
     const repairsWithPhotos = await Promise.all(
@@ -103,7 +161,16 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       })
     );
     
-    res.json({ success: true, data: repairsWithPhotos });
+    res.json({ 
+      success: true, 
+      data: repairsWithPhotos,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitNum)
+      }
+    });
   } catch (error) {
     console.error('Error fetching repairs:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
