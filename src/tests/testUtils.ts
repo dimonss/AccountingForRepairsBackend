@@ -133,6 +133,7 @@ export const createTestRepair = (overrides: any = {}) => ({
   brand: 'Apple',
   model: 'iPhone 14',
   serial_number: 'TEST123456',
+  repair_number: '123456',
   client_name: 'Тест Клиент',
   client_phone: '+7-999-000-00-00',
   client_email: 'test@example.com',
@@ -164,12 +165,12 @@ export async function createRepairInDB(repairData: any = {}, createdByUserId?: n
   
   const result = await dbRun(db, `
     INSERT INTO repairs (
-      device_type, brand, model, serial_number, client_name, 
+      device_type, brand, model, serial_number, repair_number, client_name, 
       client_phone, client_email, issue_description, estimated_cost, 
       created_by, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    repair.device_type, repair.brand, repair.model, repair.serial_number,
+    repair.device_type, repair.brand, repair.model, repair.serial_number, repair.repair_number,
     repair.client_name, repair.client_phone, repair.client_email,
     repair.issue_description, repair.estimated_cost,
     createdByUserId, repair.notes

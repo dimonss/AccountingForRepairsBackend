@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS repairs (
   brand TEXT NOT NULL,
   model TEXT NOT NULL,
   serial_number TEXT,
+  repair_number TEXT,
   client_name TEXT NOT NULL,
   client_phone TEXT NOT NULL,
   client_email TEXT,

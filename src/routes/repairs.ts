@@ -15,6 +15,7 @@ interface Repair {
   brand: string;
   model: string;
   serial_number?: string;
+  repair_number?: string;
   client_name: string;
   client_phone: string;
   client_email?: string;
@@ -148,6 +149,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       brand,
       model,
       serial_number,
+      repair_number,
       client_name,
       client_phone,
       client_email,
@@ -167,12 +169,12 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     // language=SQL
     const result = await dbRun(db, `
       INSERT INTO repairs (
-        device_type, brand, model, serial_number, client_name, 
+        device_type, brand, model, serial_number, repair_number, client_name, 
         client_phone, client_email, issue_description, estimated_cost, 
         created_by, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      device_type, brand, model, serial_number, client_name,
+      device_type, brand, model, serial_number, repair_number, client_name,
       client_phone, client_email, issue_description, estimated_cost,
       req.user!.id, notes
     ]);
@@ -197,6 +199,7 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
       brand,
       model,
       serial_number,
+      repair_number,
       client_name,
       client_phone,
       client_email,
@@ -210,7 +213,7 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
     // language=SQL
     const result = await dbRun(db, `
       UPDATE repairs SET 
-        device_type = ?, brand = ?, model = ?, serial_number = ?,
+        device_type = ?, brand = ?, model = ?, serial_number = ?, repair_number = ?,
         client_name = ?, client_phone = ?, client_email = ?,
         issue_description = ?, repair_status = ?, estimated_cost = ?,
         actual_cost = ?, notes = ?,
@@ -218,7 +221,7 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
         completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
       WHERE id = ?
     `, [
-      device_type, brand, model, serial_number, client_name,
+      device_type, brand, model, serial_number, repair_number, client_name,
       client_phone, client_email, issue_description, repair_status,
       estimated_cost, actual_cost, notes,
       repair_status, req.params.id
