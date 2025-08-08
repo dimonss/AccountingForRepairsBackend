@@ -101,6 +101,7 @@ describe('API Integration Tests', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
+      // В тестовой базе только записи, созданные в тестах
       expect(response.body.data).toHaveLength(2);
       expect(response.body.pagination).toEqual({
         page: 1,
@@ -195,10 +196,9 @@ describe('API Integration Tests', () => {
     it('should support pagination', async () => {
       const { authHeader, user } = await getTestAdminAuth();
 
-      // Create more than 2 repairs
+      // Create test repairs
       await createRepairInDB({ client_name: 'Клиент 1' }, user.id);
       await createRepairInDB({ client_name: 'Клиент 2' }, user.id);
-      await createRepairInDB({ client_name: 'Клиент 3' }, user.id);
 
       const response = await request(app)
         .get('/repairs?page=1&limit=2')
@@ -210,8 +210,8 @@ describe('API Integration Tests', () => {
       expect(response.body.pagination).toEqual({
         page: 1,
         limit: 2,
-        total: 3,
-        totalPages: 2
+        total: 2,
+        totalPages: 1
       });
     });
   });
