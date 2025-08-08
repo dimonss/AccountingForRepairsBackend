@@ -140,6 +140,14 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     const countResult = await dbGet(db, countQuery, queryParams);
     const totalCount = countResult.total;
     
+    // Get total count without filters for statistics
+    const totalWithoutFiltersQuery = `
+      SELECT COUNT(*) as total
+      FROM repairs r
+    `;
+    const totalWithoutFiltersResult = await dbGet(db, totalWithoutFiltersQuery);
+    const totalWithoutFilters = totalWithoutFiltersResult.total;
+    
     // Get repairs with pagination
     const repairsQuery = `
       SELECT r.*, 
@@ -169,7 +177,8 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
         page: pageNum,
         limit: limitNum,
         total: totalCount,
-        totalPages: Math.ceil(totalCount / limitNum)
+        totalPages: Math.ceil(totalCount / limitNum),
+        totalWithoutFilters: totalWithoutFilters
       }
     });
   } catch (error) {
