@@ -286,7 +286,7 @@ async function migrateRealExcelData() {
   const db = getDatabase();
 
   try {
-    const dataPath = path.join(__dirname, '../../data');
+    const dataPath = path.join(__dirname, '../../dataForMigrationsFromXLSX');
     
     // Read Excel files
     console.log('📖 Reading Excel files...');
