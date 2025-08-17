@@ -114,23 +114,72 @@ function isSerialNumber(value: string): boolean {
   
   const strValue = value.trim();
   
-  // Skip if it's a repair number (6 digits)
-  if (/^\d{6}$/.test(strValue)) return false;
+  // Skip if it's a repair number (6 digits) or short Chinese numbers (3-6 digits like "000123")
+  if (/^\d{3,6}$/.test(strValue)) return false;
   
-  // Patterns for serial numbers:
-  // - Webasto: "9011401C..0913253443", "386134CC", "56579cb"
-  // - Eberspacher: "70723E.57.043734", "70723D.57.638204"
-  // - Planar: "540223535", "420121414"
-  // - Chinese: "000123", "001234" (but not 6 digits)
+  // Skip common brand names and models that are not serial numbers
+  const excludePatterns = [
+    /^webasto/i,
+    /^eberspacher/i,
+    /^planar/i,
+    /^китай/i,
+    /^china/i,
+    /^2000st$/i,
+    /^2000s$/i,
+    /^air\s*top$/i,
+    /^evo$/i,
+    /^3500$/i,
+    /^5000d$/i,
+    /^hl18d$/i,
+    /^hl24$/i,
+    /^hl32d$/i,
+    /^termo$/i,
+    /^d4s$/i,
+    /^d4$/i,
+    /^d3l$/i,
+    /^d3$/i,
+    /^4дм$/i,
+    /^4дм2$/i,
+    /^2д$/i,
+    /^дм$/i,
+    /^5кв$/i,
+    /^9кв$/i,
+    /^16\.3кв$/i,
+    /^2кв$/i,
+    /^12в$/i,
+    /^24в$/i,
+    /^volvo$/i,
+    /^actros$/i,
+    /^мерс$/i,
+    /^даф$/i
+  ];
+  
+  // If it matches any exclude pattern, it's not a serial number
+  if (excludePatterns.some(pattern => pattern.test(strValue))) {
+    return false;
+  }
+  
+  // Patterns for actual serial numbers:
+  // - Webasto: "9011401C..0913253443", "386134CC" (8+ chars with letters)
+  // - Eberspacher: "70723E.57.043734", "70723D.57.638204" (with dots)
+  // - Planar: "540223535", "420121414" (8+ digits)
+  // - Chinese repair numbers like "000123" are NOT serial numbers
   // - General: alphanumeric with dots, dashes, etc.
   
   const serialPatterns = [
-    /^[A-Z0-9]+(?:\.{2}[A-Z0-9]+)?$/i,  // Webasto pattern
-    /^[A-Z0-9]+\.[A-Z0-9]+\.[A-Z0-9]+$/i, // Eberspacher pattern
-    /^[A-Z0-9]{6,12}$/i,  // General alphanumeric
-    /^[0-9]{7,12}$/,      // Long numeric (but not 6 digits)
-    /^[A-Z0-9]+(?:[-\s][A-Z0-9]+)*$/i  // With dashes or spaces
+    /^[A-Z0-9]+(?:\.{2}[A-Z0-9]+)?$/i,  // Webasto pattern like "9011401C..0913253443"
+    /^[A-Z0-9]+\.[A-Z0-9]+\.[A-Z0-9]+$/i, // Eberspacher pattern like "70723E.57.043734"
+    /^[A-Z0-9]{8,15}$/i,  // Long alphanumeric (8-15 chars, must contain letters)
+    /^[0-9]{8,15}$/,      // Long numeric (8-15 digits, excludes repair numbers)
+    /^[A-Z0-9]+(?:[-\s][A-Z0-9]+)*$/i  // With dashes or spaces (8+ chars)
   ];
+  
+  // Additional check: must be 8+ characters and contain at least one letter for alphanumeric patterns
+  // OR be 8+ digits for numeric patterns (excludes 6-digit repair numbers and 3-6 digit Chinese numbers)
+  if (strValue.length < 8) return false;
+  
+  // For patterns that could be purely numeric, ensure they're long enough to not be repair numbers
+  if (/^\d+$/.test(strValue) && strValue.length < 8) return false;
   
   return serialPatterns.some(pattern => pattern.test(strValue));
 }
@@ -155,9 +204,34 @@ function extractSerialNumber(equipmentName: string): string | null {
   
   // Split by spaces and look for serial number patterns
   const parts = equipmentName.split(/\s+/);
+  
+  // Look for parts that match serial number patterns
   for (const part of parts) {
     if (isSerialNumber(part)) {
       return part;
+    }
+  }
+  
+  // Also check for patterns that might be split across spaces
+  // Look for Webasto patterns like "9011401C..0913253443"
+  const webastoPattern = /\b[A-Z0-9]+(?:\.{2}[A-Z0-9]+)?\b/gi;
+  const webastoMatch = equipmentName.match(webastoPattern);
+  if (webastoMatch) {
+    for (const match of webastoMatch) {
+      if (isSerialNumber(match)) {
+        return match;
+      }
+    }
+  }
+  
+  // Look for Eberspacher patterns like "70723E.57.043734"
+  const eberspacherPattern = /\b[A-Z0-9]+\.[A-Z0-9]+\.[A-Z0-9]+\b/gi;
+  const eberspacherMatch = equipmentName.match(eberspacherPattern);
+  if (eberspacherMatch) {
+    for (const match of eberspacherMatch) {
+      if (isSerialNumber(match)) {
+        return match;
+      }
     }
   }
   
@@ -274,6 +348,38 @@ function excelDateToJSDate(excelDate: number): Date {
   return new Date(utcValue * 1000);
 }
 
+function calculateSimilarity(str1: string, str2: string): number {
+  if (str1 === str2) return 1.0;
+  if (str1.length === 0) return str2.length === 0 ? 1.0 : 0.0;
+  if (str2.length === 0) return 0.0;
+  
+  const matrix = [];
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  
+  const maxLength = Math.max(str1.length, str2.length);
+  return maxLength === 0 ? 1.0 : (maxLength - matrix[str2.length][str1.length]) / maxLength;
+}
+
 async function migrateRealExcelData() {
   console.log('📊 Starting real Excel data migration...');
   
@@ -370,12 +476,59 @@ async function migrateRealExcelData() {
           continue;
         }
         
-        // Find client by equipment name
+        // Find client by equipment name with flexible matching
         let clientName = '';
+        let matchedEquipment = '';
+        
+        // First try exact match
         for (const [name, eqName] of equipmentMap.entries()) {
           if (eqName === equipmentName) {
             clientName = name;
+            matchedEquipment = eqName;
             break;
+          }
+        }
+        
+        // If no exact match, try flexible matching
+        if (!clientName) {
+          // Normalize equipment name for comparison
+          const normalizedRepairEquipment = equipmentName.toLowerCase()
+            .replace(/\s+/g, ' ') // normalize spaces
+            .replace(/[^\w\s]/g, '') // remove special characters
+            .trim();
+          
+          let bestMatch = '';
+          let bestMatchScore = 0;
+          
+          for (const [name, eqName] of equipmentMap.entries()) {
+            const normalizedEqName = eqName.toLowerCase()
+              .replace(/\s+/g, ' ')
+              .replace(/[^\w\s]/g, '')
+              .trim();
+            
+            // Check if one contains the other (common case for equipment names)
+            if (normalizedRepairEquipment.includes(normalizedEqName) || 
+                normalizedEqName.includes(normalizedRepairEquipment)) {
+              const score = Math.min(normalizedRepairEquipment.length, normalizedEqName.length);
+              if (score > bestMatchScore) {
+                bestMatchScore = score;
+                bestMatch = name;
+                matchedEquipment = eqName;
+              }
+            }
+            
+            // Also check for common typos and variations
+            const similarity = calculateSimilarity(normalizedRepairEquipment, normalizedEqName);
+            if (similarity > 0.8 && similarity > bestMatchScore / 100) {
+              bestMatchScore = similarity * 100;
+              bestMatch = name;
+              matchedEquipment = eqName;
+            }
+          }
+          
+          if (bestMatch) {
+            clientName = bestMatch;
+            console.log(`🔍 Flexible match: "${equipmentName}" -> "${matchedEquipment}" (client: ${clientName})`);
           }
         }
         
