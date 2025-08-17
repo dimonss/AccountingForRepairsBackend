@@ -348,36 +348,38 @@ function excelDateToJSDate(excelDate: number): Date {
   return new Date(utcValue * 1000);
 }
 
-function calculateSimilarity(str1: string, str2: string): number {
-  if (str1 === str2) return 1.0;
-  if (str1.length === 0) return str2.length === 0 ? 1.0 : 0.0;
-  if (str2.length === 0) return 0.0;
+function extractBaseEquipmentName(equipmentName: string): string | null {
+  if (!equipmentName || typeof equipmentName !== 'string') return null;
   
-  const matrix = [];
-  for (let i = 0; i <= str2.length; i++) {
-    matrix[i] = [i];
-  }
+  const trimmed = equipmentName.trim();
   
-  for (let j = 0; j <= str1.length; j++) {
-    matrix[0][j] = j;
-  }
+  // Remove serial number patterns
+  // Webasto: "webasto2000st     9011401C..1217191953" -> "webasto2000st"
+  // Eberspacher: "d4s 70723E.57.965297" -> "d4s"
+  // Planar: "planar 4дм 540223535" -> "planar 4дм"
   
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
-        );
-      }
-    }
-  }
+  // Remove repair numbers (6 digits like "000123") - both at start and end
+  let baseName = trimmed.replace(/^\d{6}\s+/g, '').replace(/\s+\d{6}\s*$/g, '');
   
-  const maxLength = Math.max(str1.length, str2.length);
-  return maxLength === 0 ? 1.0 : (maxLength - matrix[str2.length][str1.length]) / maxLength;
+  // Remove Webasto serial numbers (8+ alphanumeric with dots)
+  baseName = baseName.replace(/\s+[A-Z0-9]{8,}(?:\.{2}[A-Z0-9]+)?(?:\.[A-Z0-9]+\.[A-Z0-9]+)?\s*$/i, '');
+  
+  // Remove Eberspacher serial numbers (format: XXX.XX.XXXXXX)
+  baseName = baseName.replace(/\s+[A-Z0-9]{6}\.[A-Z0-9]{2}\.[A-Z0-9]{6}\s*$/i, '');
+  
+  // Remove general long alphanumeric (8+ chars)
+  baseName = baseName.replace(/\s+[A-Z0-9]{8,}\s*$/i, '');
+  
+  // Remove long numeric (8+ digits)
+  baseName = baseName.replace(/\s+\d{8,}\s*$/i, '');
+  
+  // Remove short alphanumeric codes (like "370163СА")
+  baseName = baseName.replace(/\s+[A-Z0-9]{6,7}\s*$/i, '');
+  
+  // Clean up multiple spaces
+  baseName = baseName.replace(/\s+/g, ' ').trim();
+  
+  return baseName || null;
 }
 
 async function migrateRealExcelData() {
@@ -437,9 +439,9 @@ async function migrateRealExcelData() {
     console.log(`Created client map with ${validClients} valid entries`);
     console.log(`Formatted ${formattedPhones} phone numbers to international format`);
 
-    // Create equipment map
+    // Create equipment map (one client can have multiple equipment)
     console.log('🔧 Processing equipment data...');
-    const equipmentMap = new Map<string, string>();
+    const equipmentMap = new Map<string, string[]>();
     let validEquipment = 0;
     
     equipmentData.forEach(equipment => {
@@ -447,8 +449,23 @@ async function migrateRealExcelData() {
       const equipmentName = equipment['Наименование оборудования']?.toString().trim();
       
       if (name && equipmentName && name !== '-' && name !== '') {
-        equipmentMap.set(name, equipmentName);
+        // Add to existing array or create new one
+        if (equipmentMap.has(name)) {
+          equipmentMap.get(name)!.push(equipmentName);
+        } else {
+          equipmentMap.set(name, [equipmentName]);
+        }
         validEquipment++;
+        
+        // Also add base equipment name (without serial number) for better matching
+        const baseEquipmentName = extractBaseEquipmentName(equipmentName);
+        if (baseEquipmentName && baseEquipmentName !== equipmentName) {
+          if (equipmentMap.has(name)) {
+            equipmentMap.get(name)!.push(baseEquipmentName);
+          } else {
+            equipmentMap.set(name, [baseEquipmentName]);
+          }
+        }
       }
     });
     
@@ -476,59 +493,58 @@ async function migrateRealExcelData() {
           continue;
         }
         
-        // Find client by equipment name with flexible matching
+        // Find client by equipment name - EXACT MATCH ONLY
         let clientName = '';
         let matchedEquipment = '';
         
-        // First try exact match
-        for (const [name, eqName] of equipmentMap.entries()) {
-          if (eqName === equipmentName) {
-            clientName = name;
-            matchedEquipment = eqName;
-            break;
+        // Look for exact match (with trimmed whitespace)
+        for (const [name, eqNames] of equipmentMap.entries()) {
+          for (const eqName of eqNames) {
+            if (eqName.trim() === equipmentName.trim()) {
+              clientName = name;
+              matchedEquipment = eqName;
+              break;
+            }
+          }
+          if (clientName) break;
+        }
+        
+        // If no exact match, try to find by base equipment name (without serial number)
+        if (!clientName) {
+          const baseEquipmentName = extractBaseEquipmentName(equipmentName);
+          if (baseEquipmentName && baseEquipmentName !== equipmentName) {
+            for (const [name, eqNames] of equipmentMap.entries()) {
+              for (const eqName of eqNames) {
+                if (eqName.trim() === baseEquipmentName.trim()) {
+                  clientName = name;
+                  matchedEquipment = eqName;
+                  console.log(`🔍 Base name match: "${equipmentName}" -> "${baseEquipmentName}" (client: ${clientName})`);
+                  break;
+                }
+              }
+              if (clientName) break;
+            }
           }
         }
         
-        // If no exact match, try flexible matching
+        // If no exact match, log the missing equipment for manual review
         if (!clientName) {
-          // Normalize equipment name for comparison
-          const normalizedRepairEquipment = equipmentName.toLowerCase()
-            .replace(/\s+/g, ' ') // normalize spaces
-            .replace(/[^\w\s]/g, '') // remove special characters
-            .trim();
+          console.log(`❌ EXACT MATCH REQUIRED: "${equipmentName}" not found in equipment list`);
+          console.log(`   Available similar equipment:`);
           
-          let bestMatch = '';
-          let bestMatchScore = 0;
-          
-          for (const [name, eqName] of equipmentMap.entries()) {
-            const normalizedEqName = eqName.toLowerCase()
-              .replace(/\s+/g, ' ')
-              .replace(/[^\w\s]/g, '')
-              .trim();
-            
-            // Check if one contains the other (common case for equipment names)
-            if (normalizedRepairEquipment.includes(normalizedEqName) || 
-                normalizedEqName.includes(normalizedRepairEquipment)) {
-              const score = Math.min(normalizedRepairEquipment.length, normalizedEqName.length);
-              if (score > bestMatchScore) {
-                bestMatchScore = score;
-                bestMatch = name;
-                matchedEquipment = eqName;
+          // Show similar equipment names for debugging
+          let similarCount = 0;
+          for (const [name, eqNames] of equipmentMap.entries()) {
+            for (const eqName of eqNames) {
+              if (eqName.toLowerCase().includes(equipmentName.toLowerCase().split(' ')[0]) || 
+                  equipmentName.toLowerCase().includes(eqName.toLowerCase().split(' ')[0])) {
+                if (similarCount < 5) { // Limit to 5 suggestions
+                  console.log(`   - "${eqName}" (client: ${name})`);
+                  similarCount++;
+                }
               }
             }
-            
-            // Also check for common typos and variations
-            const similarity = calculateSimilarity(normalizedRepairEquipment, normalizedEqName);
-            if (similarity > 0.8 && similarity > bestMatchScore / 100) {
-              bestMatchScore = similarity * 100;
-              bestMatch = name;
-              matchedEquipment = eqName;
-            }
-          }
-          
-          if (bestMatch) {
-            clientName = bestMatch;
-            console.log(`🔍 Flexible match: "${equipmentName}" -> "${matchedEquipment}" (client: ${clientName})`);
+            if (similarCount >= 5) break;
           }
         }
         
