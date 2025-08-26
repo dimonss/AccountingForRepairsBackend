@@ -7,6 +7,7 @@ import path from 'path';
 import { initDatabase } from './database/init';
 import repairRoutes from './routes/repairs';
 import authRoutes from './routes/auth';
+import reportRoutes from './routes/reports';
 import { requestLogger, errorLogger, securityLogger } from './middleware/logging';
 import { logInfo, logError } from './utils/logger';
 
@@ -101,6 +102,7 @@ app.use('/photos', (req, res, next) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/repairs', repairRoutes);
+app.use('/reports', reportRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
