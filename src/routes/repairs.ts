@@ -107,14 +107,14 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     if (search && typeof search === 'string') {
       const searchTerm = `%${search}%`;
       whereConditions.push(`(
-        r.client_name LIKE ? OR 
-        r.client_phone LIKE ? OR 
-        r.client_email LIKE ? OR 
-        r.serial_number LIKE ? OR 
-        r.repair_number LIKE ? OR
-        r.device_type LIKE ? OR
-        r.brand LIKE ? OR
-        r.model LIKE ?
+        r.client_name LIKE ? COLLATE NOCASE OR 
+        r.client_phone LIKE ? COLLATE NOCASE OR 
+        r.client_email LIKE ? COLLATE NOCASE OR 
+        r.serial_number LIKE ? COLLATE NOCASE OR 
+        r.repair_number LIKE ? COLLATE NOCASE OR
+        r.device_type LIKE ? COLLATE NOCASE OR
+        r.brand LIKE ? COLLATE NOCASE OR
+        r.model LIKE ? COLLATE NOCASE
       )`);
       queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
