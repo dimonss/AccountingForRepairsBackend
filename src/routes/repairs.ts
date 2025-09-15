@@ -112,11 +112,10 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
         r.client_email LIKE ? COLLATE NOCASE OR 
         r.serial_number LIKE ? COLLATE NOCASE OR 
         r.repair_number LIKE ? COLLATE NOCASE OR
-        r.device_type LIKE ? COLLATE NOCASE OR
         r.brand LIKE ? COLLATE NOCASE OR
         r.model LIKE ? COLLATE NOCASE
       )`);
-      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
     if (status && status !== 'all' && typeof status === 'string') {
