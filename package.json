@@ -17,7 +17,8 @@
     "add-mock-data": "ts-node src/scripts/AddMockDataIntoDatabase.ts",
     "migrate-real-excel": "ts-node src/scripts/migrateRealExcelData.ts",
     "generate-defauil-env": "node scripts/generateDefaultEnv.js",
-    "logs:cleanup": "ts-node src/scripts/cleanupLogs.ts"
+    "logs:cleanup": "ts-node src/scripts/cleanupLogs.ts",
+    "update-client-names-to-lowercase": "ts-node src/scripts/updateClientNames.ts"
   },
   "keywords": [
     "repair",
