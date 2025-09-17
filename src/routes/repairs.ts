@@ -20,7 +20,7 @@ interface Repair {
   client_phone: string;
   client_email?: string;
   issue_description: string;
-  repair_status: 'pending' | 'in_progress' | 'waiting_parts' | 'completed' | 'issued' | 'cancelled';
+  repair_status: 'pending' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled';
   estimated_cost?: number;
   actual_cost?: number;
   notes?: string;
@@ -107,13 +107,13 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     if (search && typeof search === 'string') {
       const searchTerm = `%${search}%`;
       whereConditions.push(`(
-        r.client_name LIKE ? COLLATE NOCASE OR 
-        r.client_phone LIKE ? COLLATE NOCASE OR 
-        r.client_email LIKE ? COLLATE NOCASE OR 
-        r.serial_number LIKE ? COLLATE NOCASE OR 
-        r.repair_number LIKE ? COLLATE NOCASE OR
-        r.brand LIKE ? COLLATE NOCASE OR
-        r.model LIKE ? COLLATE NOCASE
+        r.client_name LIKE ? OR
+        r.client_phone LIKE ? OR 
+        r.client_email LIKE ? OR 
+        r.serial_number LIKE ? OR 
+        r.repair_number LIKE ? OR
+        r.brand LIKE ? OR
+        r.model LIKE ?
       )`);
       queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
