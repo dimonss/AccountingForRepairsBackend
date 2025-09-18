@@ -18,7 +18,8 @@
     "migrate-real-excel": "ts-node src/scripts/migrateRealExcelData.ts",
     "generate-defauil-env": "node scripts/generateDefaultEnv.js",
     "logs:cleanup": "ts-node src/scripts/cleanupLogs.ts",
-    "update-client-names-to-lowercase": "ts-node src/scripts/updateClientNames.ts"
+    "update-client-names-to-lowercase": "ts-node src/scripts/updateClientNames.ts",
+    "backup-db": "mkdir -p backups && cp db.sqlite backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite && echo 'Database backup created successfully'"
   },
   "keywords": [
     "repair",
