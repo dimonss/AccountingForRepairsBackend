@@ -36,6 +36,7 @@ Returns overview statistics including counts by repair status and completion rat
     "pending": 25,
     "inProgress": 30,
     "completed": 80,
+    "issued": 75,
     "cancelled": 10,
     "waitingParts": 5,
     "completionRate": 53

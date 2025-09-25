@@ -81,6 +81,7 @@ router.get('/overview', authenticateToken, async (req: Request, res: Response) =
       pending: statusStats.find((stat: any) => stat.repair_status === 'pending')?.count || 0,
       inProgress: statusStats.find((stat: any) => stat.repair_status === 'in_progress')?.count || 0,
       completed: completedCount,
+      issued: statusStats.find((stat: any) => stat.repair_status === 'issued')?.count || 0,
       cancelled: statusStats.find((stat: any) => stat.repair_status === 'cancelled')?.count || 0,
       waitingParts: statusStats.find((stat: any) => stat.repair_status === 'waiting_parts')?.count || 0,
       completionRate: Math.round(completionRate)
@@ -376,6 +377,7 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response) =>
         pending: overviewStats.find((stat: any) => stat.repair_status === 'pending')?.count || 0,
         inProgress: overviewStats.find((stat: any) => stat.repair_status === 'in_progress')?.count || 0,
         completed: completedCount,
+        issued: overviewStats.find((stat: any) => stat.repair_status === 'issued')?.count || 0,
         cancelled: overviewStats.find((stat: any) => stat.repair_status === 'cancelled')?.count || 0,
         waitingParts: overviewStats.find((stat: any) => stat.repair_status === 'waiting_parts')?.count || 0,
         completionRate: Math.round(completionRate)
