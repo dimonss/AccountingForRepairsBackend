@@ -72,4 +72,6 @@ Thumbs.db
 
 # Static
 uploads
+backups
+backups_from_prod
 *.xlsx
