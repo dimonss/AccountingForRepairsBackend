@@ -24,30 +24,36 @@ function dbGet(db: sqlite3.Database, query: string, params: any[] = []): Promise
   });
 }
 
+// Helper function to build date filter
+function buildDateFilter(dateRange: string, startDate?: string, endDate?: string): string {
+  // If custom dates are provided, use them
+  if (startDate && endDate) {
+    return `WHERE r.created_at >= '${startDate}' AND r.created_at <= '${endDate}'`;
+  }
+  
+  // Otherwise use predefined ranges
+  switch (dateRange) {
+    case 'week':
+      return 'WHERE r.created_at >= datetime("now", "-7 days")';
+    case 'month':
+      return 'WHERE r.created_at >= datetime("now", "-1 month")';
+    case 'quarter':
+      return 'WHERE r.created_at >= datetime("now", "-3 months")';
+    case 'year':
+      return 'WHERE r.created_at >= datetime("now", "-1 year")';
+    default:
+      return 'WHERE r.created_at >= datetime("now", "-1 month")';
+  }
+}
+
 // GET /reports/overview - Get overview statistics
 router.get('/overview', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'month' } = req.query;
+    const { dateRange = 'month', startDate, endDate } = req.query;
     
-    // Apply date filtering based on dateRange
-    let dateFilter: string;
-    switch (dateRange) {
-      case 'week':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-7 days")';
-        break;
-      case 'month':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-        break;
-      case 'quarter':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-3 months")';
-        break;
-      case 'year':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 year")';
-        break;
-      default:
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-    }
+    // Apply date filtering based on dateRange or custom dates
+    const dateFilter = buildDateFilter(dateRange as string, startDate as string, endDate as string);
     
     // Get status counts
     const statusQuery = `
@@ -98,26 +104,10 @@ router.get('/overview', authenticateToken, async (req: Request, res: Response) =
 router.get('/devices', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'month' } = req.query;
+    const { dateRange = 'month', startDate, endDate } = req.query;
     
     // Apply date filtering
-    let dateFilter: string;
-    switch (dateRange) {
-      case 'week':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-7 days")';
-        break;
-      case 'month':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-        break;
-      case 'quarter':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-3 months")';
-        break;
-      case 'year':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 year")';
-        break;
-      default:
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-    }
+    const dateFilter = buildDateFilter(dateRange as string, startDate as string, endDate as string);
     
     const deviceQuery = `
       SELECT 
@@ -142,26 +132,10 @@ router.get('/devices', authenticateToken, async (req: Request, res: Response) =>
 router.get('/brands', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'month' } = req.query;
+    const { dateRange = 'month', startDate, endDate } = req.query;
     
     // Apply date filtering
-    let dateFilter: string;
-    switch (dateRange) {
-      case 'week':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-7 days")';
-        break;
-      case 'month':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-        break;
-      case 'quarter':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-3 months")';
-        break;
-      case 'year':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 year")';
-        break;
-      default:
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-    }
+    const dateFilter = buildDateFilter(dateRange as string, startDate as string, endDate as string);
     
     const brandQuery = `
       SELECT 
@@ -186,35 +160,49 @@ router.get('/brands', authenticateToken, async (req: Request, res: Response) => 
 router.get('/monthly', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'year' } = req.query;
+    const { dateRange = 'year', startDate, endDate } = req.query;
     
-    let monthsBack = 12; // Default to 12 months
-    
-    // Adjust based on dateRange
-    switch (dateRange) {
-      case 'week':
-        monthsBack = 1;
-        break;
-      case 'month':
-        monthsBack = 3;
-        break;
-      case 'quarter':
-        monthsBack = 6;
-        break;
-      case 'year':
-        monthsBack = 12;
-        break;
+    // If custom dates are provided, use them; otherwise use predefined logic
+    let monthlyQuery: string;
+    if (startDate && endDate) {
+      monthlyQuery = `
+        SELECT 
+          strftime('%Y-%m', r.created_at) as month,
+          COUNT(*) as count
+        FROM repairs r
+        WHERE r.created_at >= '${startDate}' AND r.created_at <= '${endDate}'
+        GROUP BY month
+        ORDER BY month ASC
+      `;
+    } else {
+      let monthsBack = 12; // Default to 12 months
+      
+      // Adjust based on dateRange
+      switch (dateRange) {
+        case 'week':
+          monthsBack = 1;
+          break;
+        case 'month':
+          monthsBack = 3;
+          break;
+        case 'quarter':
+          monthsBack = 6;
+          break;
+        case 'year':
+          monthsBack = 12;
+          break;
+      }
+      
+      monthlyQuery = `
+        SELECT 
+          strftime('%Y-%m', r.created_at) as month,
+          COUNT(*) as count
+        FROM repairs r
+        WHERE r.created_at >= datetime("now", "-${monthsBack} months")
+        GROUP BY month
+        ORDER BY month ASC
+      `;
     }
-    
-    const monthlyQuery = `
-      SELECT 
-        strftime('%Y-%m', r.created_at) as month,
-        COUNT(*) as count
-      FROM repairs r
-      WHERE r.created_at >= datetime("now", "-${monthsBack} months")
-      GROUP BY month
-      ORDER BY month ASC
-    `;
     
     const monthlyStats = await dbAll(db, monthlyQuery);
     
@@ -229,26 +217,10 @@ router.get('/monthly', authenticateToken, async (req: Request, res: Response) =>
 router.get('/financial', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'month' } = req.query;
+    const { dateRange = 'month', startDate, endDate } = req.query;
     
     // Apply date filtering
-    let dateFilter: string;
-    switch (dateRange) {
-      case 'week':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-7 days")';
-        break;
-      case 'month':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-        break;
-      case 'quarter':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-3 months")';
-        break;
-      case 'year':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 year")';
-        break;
-      default:
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-    }
+    const dateFilter = buildDateFilter(dateRange as string, startDate as string, endDate as string);
     
     const financialQuery = `
       SELECT 
@@ -285,26 +257,10 @@ router.get('/financial', authenticateToken, async (req: Request, res: Response) 
 router.get('/summary', authenticateToken, async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { dateRange = 'month' } = req.query;
+    const { dateRange = 'month', startDate, endDate } = req.query;
     
     // Apply date filtering
-    let dateFilter: string;
-    switch (dateRange) {
-      case 'week':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-7 days")';
-        break;
-      case 'month':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-        break;
-      case 'quarter':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-3 months")';
-        break;
-      case 'year':
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 year")';
-        break;
-      default:
-        dateFilter = 'WHERE r.created_at >= datetime("now", "-1 month")';
-    }
+    const dateFilter = buildDateFilter(dateRange as string, startDate as string, endDate as string);
     
     // Get all statistics in parallel
     const [overviewStats, deviceStats, brandStats, monthlyStats, financialStats] = await Promise.all([
