@@ -20,7 +20,7 @@ interface Repair {
   client_phone: string;
   client_email?: string;
   issue_description: string;
-  repair_status: 'pending' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled';
+  repair_status: 'pending' | 'in_progress' | 'waiting_parts' | 'completed' | 'issued' | 'cancelled';
   estimated_cost?: number;
   actual_cost?: number;
   notes?: string;
@@ -383,30 +383,35 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
       return res.status(400).json({ success: false, error: 'Status is required' });
     }
 
-    // Get current status
+    // Get current repair info
     // language=SQL
-    const currentRepair = await dbGet(db, 'SELECT repair_status FROM repairs WHERE id = ?', [req.params.id]);
+    const currentRepair = await dbGet(db, 'SELECT repair_status, estimated_cost FROM repairs WHERE id = ?', [req.params.id]);
     
     if (!currentRepair) {
       return res.status(404).json({ success: false, error: 'Repair not found' });
     }
 
-    // Update repair status
+    // Update repair status and copy estimated_cost to actual_cost when status changes to 'issued'
     // language=SQL
     await dbRun(db, `
       UPDATE repairs SET 
         repair_status = ?, 
         updated_at = CURRENT_TIMESTAMP,
-        completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
+        completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,
+        actual_cost = CASE WHEN ? = 'issued' THEN estimated_cost ELSE actual_cost END
       WHERE id = ?
-    `, [status, status, req.params.id]);
+    `, [status, status, status, req.params.id]);
 
     // Log status change with user who made the change
     // language=SQL
+    const historyNotes = status === 'issued' && currentRepair.estimated_cost
+      ? `${notes ? notes + '. ' : ''}Actual cost set to ${currentRepair.estimated_cost} from estimated cost.`
+      : notes;
+
     await dbRun(db, `
       INSERT INTO repair_status_history (repair_id, old_status, new_status, changed_by, notes)
       VALUES (?, ?, ?, ?, ?)
-    `, [req.params.id, currentRepair.repair_status, status, req.user!.id, notes || null]);
+    `, [req.params.id, currentRepair.repair_status, status, req.user!.id, historyNotes || null]);
 
     res.json({ success: true, message: 'Repair status updated successfully' });
   } catch (error) {
