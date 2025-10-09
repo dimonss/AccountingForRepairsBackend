@@ -6,13 +6,13 @@
 
 ### 1. Добавьте в `.env` файл:
 ```env
-SERVER_HOST=root@chalysh.tech
+SERVER_HOST=root@chalysh.pro
 ```
 
 ### 2. Убедитесь, что SSH ключ настроен:
 ```bash
 # Проверьте подключение к серверу
-ssh root@chalysh.tech "echo 'Connection successful'"
+ssh root@chalysh.pro "echo 'Connection successful'"
 ```
 
 ## Использование
@@ -35,7 +35,7 @@ npm run download-backups
 🔄 Downloading backups from production server...
 
 📁 Created directory: ./backups_from_prod
-🔍 Checking connection to root@chalysh.tech...
+🔍 Checking connection to root@chalysh.pro...
 ✅ Server connection successful
 
 📋 Available backups on server:
@@ -77,7 +77,7 @@ drwxr-xr-x  29 chalyshdmitrii  staff      928 Sep 18 22:25 ..
 
 **Решение:**
 1. Проверьте SSH ключ: `ssh-add -l`
-2. Проверьте подключение: `ssh root@chalysh.tech`
+2. Проверьте подключение: `ssh root@chalysh.pro`
 3. Убедитесь, что `SERVER_HOST` в `.env` правильный
 
 ### Ошибка скачивания:
@@ -87,4 +87,4 @@ drwxr-xr-x  29 chalyshdmitrii  staff      928 Sep 18 22:25 ..
 
 **Решение:**
 1. Проверьте права доступа к папке backups на сервере
-2. Убедитесь, что файлы существуют: `ssh root@chalysh.tech "ls -la /root/backend/AccountingForRepairsBackend/backups"`
+2. Убедитесь, что файлы существуют: `ssh root@chalysh.pro "ls -la /root/backend/AccountingForRepairsBackend/backups"`
