@@ -186,6 +186,54 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
+// GET /repairs/next-number - Get next repair number (authenticated users only)
+// This route must be defined before /:id to avoid route conflicts
+router.get('/next-number', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    
+    // Get the last repair number from the database, ordered by repair_number numerically
+    // We need to find the repair with the highest numeric value of repair_number
+    // SQLite: CAST will convert "002321" to 2321, which we can then order correctly
+    const lastRepair = await dbGet(db, `
+      SELECT repair_number 
+      FROM repairs 
+      WHERE repair_number IS NOT NULL 
+        AND repair_number != ''
+        AND repair_number GLOB '[0-9]*'
+        AND CAST(repair_number AS INTEGER) > 0
+      ORDER BY CAST(repair_number AS INTEGER) DESC
+      LIMIT 1
+    `);
+    
+    let nextNumber: string;
+    
+    if (lastRepair && lastRepair.repair_number) {
+      // Parse the last repair number as integer, increment, and format back to 6 digits
+      const lastNumber = parseInt(lastRepair.repair_number, 10);
+      if (isNaN(lastNumber)) {
+        // If parsing fails, start from 000001
+        nextNumber = '000001';
+      } else {
+        const incrementedNumber = lastNumber + 1;
+        // Format as 6-digit string with leading zeros
+        nextNumber = incrementedNumber.toString().padStart(6, '0');
+      }
+    } else {
+      // If no repairs exist, start with 000001
+      nextNumber = '000001';
+    }
+    
+    res.json({ 
+      success: true, 
+      data: { repair_number: nextNumber } 
+    });
+  } catch (error) {
+    console.error('Error getting next repair number:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 // GET /repairs/:id - Get single repair (authenticated users only)
 router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
