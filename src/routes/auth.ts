@@ -202,7 +202,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials'
+        error: 'Не валидные учетные данные'
       });
     }
 
@@ -211,7 +211,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!isValidPassword) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials'
+        error: 'Не валидные учетные данные'
       });
     }
 
