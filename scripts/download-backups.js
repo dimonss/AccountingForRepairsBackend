@@ -7,7 +7,7 @@ require('dotenv').config();
 
 // Configuration
 const SERVER_HOST = process.env.SERVER_HOST;
-const SERVER_BACKUP_PATH = '/root/backend/AccountingForRepairsBackend/backups';
+const SERVER_BACKUP_PATH = process.env.SERVER_BACKUP_PATH;
 const LOCAL_BACKUP_DIR = './backups_from_prod';
 
 // Helper function to get file info (name, size, date)
