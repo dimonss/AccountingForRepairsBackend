@@ -106,16 +106,28 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
     
     if (search && typeof search === 'string') {
       const searchTerm = `%${search}%`;
+      const searchClean = `%${search.replace(/[\s\u200B-\u200D\uFEFF\u202A-\u202E]/g, '')}%`;
       whereConditions.push(`(
         r.client_name LIKE ? OR
+        REPLACE(r.client_name, ' ', '') LIKE ? OR
         r.client_phone LIKE ? OR 
+        REPLACE(r.client_phone, ' ', '') LIKE ? OR 
         r.client_email LIKE ? OR 
         r.serial_number LIKE ? OR 
         r.repair_number LIKE ? OR
         r.brand LIKE ? OR
-        r.model LIKE ?
+        r.model LIKE ? OR
+        REPLACE(r.model, ' ', '') LIKE ?
       )`);
-      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      queryParams.push(
+        searchTerm, searchClean,
+        searchTerm, searchClean,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm, searchClean
+      );
     }
     
     if (status && status !== 'all' && typeof status === 'string') {
@@ -290,6 +302,9 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
+    // Clean client_phone from spaces and formatting chars
+    const cleanClientPhone = client_phone.replace(/[\s\u200B-\u200D\uFEFF\u202A-\u202E]/g, '');
+
     // language=SQL
     const result = await dbRun(db, `
       INSERT INTO repairs (
@@ -299,7 +314,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       device_type, brand, model, serial_number, repair_number, client_name,
-      client_phone, client_email, issue_description, estimated_cost,
+      cleanClientPhone, client_email, issue_description, estimated_cost,
       req.user!.id, notes
     ]);
 
@@ -334,6 +349,9 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
       notes
     }: Repair = req.body;
 
+    // Clean client_phone from spaces and formatting chars if provided
+    const cleanClientPhone = client_phone ? client_phone.replace(/[\s\u200B-\u200D\uFEFF\u202A-\u202E]/g, '') : client_phone;
+
     // language=SQL
     const result = await dbRun(db, `
       UPDATE repairs SET 
@@ -346,7 +364,7 @@ router.put('/:id', authenticateToken, requireManagerOrAdmin, async (req: Request
       WHERE id = ?
     `, [
       device_type, brand, model, serial_number, repair_number, client_name,
-      client_phone, client_email, issue_description, repair_status,
+      cleanClientPhone, client_email, issue_description, repair_status,
       estimated_cost, actual_cost, notes,
       repair_status, req.params.id
     ]);
