@@ -21,7 +21,10 @@
     "update-client-names-to-lowercase": "ts-node src/scripts/updateClientNames.ts",
     "backup-db": "mkdir -p backups && cp db.sqlite backups/db_backup_$(date +%Y%m%d_%H%M%S).sqlite && echo 'Database backup created successfully'",
     "download-backups": "node scripts/download-backups.js",
-    "trigger-backup-on-prod": "node scripts/trigger-backup-on-prod.js"
+    "trigger-backup-on-prod": "node scripts/trigger-backup-on-prod.js",
+    "remove-phone-spaces": "ts-node src/scripts/removePhoneSpaces.ts",
+    "remove-phone-spaces:dry-run": "ts-node src/scripts/removePhoneSpaces.ts --dry-run",
+    "run-remove-phone-spaces-on-prod": "node scripts/run-remove-phone-spaces-on-prod.js"
   },
   "keywords": [
     "repair",
