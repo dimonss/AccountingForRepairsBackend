@@ -53,8 +53,8 @@ try {
 
   // 2. Run remove-phone-spaces script on remote server
   console.log(`🚀 Executing phone cleanup on production server (${REMOTE_PROJECT_PATH})...`);
-  const scriptArgs = isDryRun ? '--dry-run' : '';
-  const runCommand = `source ~/.nvm/nvm.sh && cd ${REMOTE_PROJECT_PATH} && npm run remove-phone-spaces ${scriptArgs}`;
+  const npmScript = isDryRun ? 'npm run remove-phone-spaces:dry-run' : 'npm run remove-phone-spaces';
+  const runCommand = `source ~/.nvm/nvm.sh && cd ${REMOTE_PROJECT_PATH} && ${npmScript}`;
 
   try {
     const runOutput = execSync(`ssh ${SERVER_HOST} "${runCommand}"`, { encoding: 'utf8' });

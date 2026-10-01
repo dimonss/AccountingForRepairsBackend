@@ -9,11 +9,11 @@ dotenv.config();
 
 /**
  * Remove all whitespace characters (spaces, tabs, newlines, non-breaking spaces \u00A0)
- * and invisible Unicode formatting characters (zero-width spaces, LTR/RTL embedding markers)
+ * and invisible Unicode formatting characters (zero-width spaces, LTR/RTL marks, embedding markers)
  */
 export function cleanPhoneNumber(phone: string): string {
   if (!phone) return '';
-  return phone.replace(/[\s\u200B-\u200D\uFEFF\u202A-\u202E]/g, '');
+  return phone.replace(/[\s\u200B-\u200F\uFEFF\u202A-\u202E]/g, '');
 }
 
 // Helper functions for database operations
@@ -71,39 +71,26 @@ async function main() {
     }
   }
 
+  // Resolve to absolute path for safety
+  const resolvedDbPath = path.resolve(dbPath);
+
   console.log('====================================================');
   console.log('📞 Script to Remove Spaces from Phone Numbers in DB');
   console.log('====================================================');
-  console.log(`📁 Target database: ${dbPath}`);
+  console.log(`📁 Target database: ${resolvedDbPath}`);
   console.log(`🔍 Mode: ${isDryRun ? 'DRY-RUN (no changes will be applied)' : 'LIVE (will update database)'}`);
 
-  if (!fs.existsSync(dbPath)) {
-    console.error(`❌ Database file not found: ${dbPath}`);
+  if (!fs.existsSync(resolvedDbPath)) {
+    console.error(`❌ Database file not found: ${resolvedDbPath}`);
     process.exit(1);
   }
 
-  // Create backup if modifying database
-  if (!isDryRun && !noBackup) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupDir = path.join(path.dirname(dbPath), 'backups');
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-    const dbFileName = path.basename(dbPath);
-    const backupPath = path.join(backupDir, `${dbFileName}_backup_before_phone_clean_${timestamp}`);
-    try {
-      fs.copyFileSync(dbPath, backupPath);
-      console.log(`💾 Backup created successfully at: ${backupPath}\n`);
-    } catch (backupError) {
-      console.error('⚠️  Failed to create automatic backup:', backupError);
-      console.error('Aborting for safety. Pass --no-backup to proceed without backup.');
-      process.exit(1);
-    }
-  }
-
-  const db = new sqlite3.Database(dbPath);
+  const db = new sqlite3.Database(resolvedDbPath);
 
   try {
+    // Set busy timeout to 5000ms so concurrent requests don't fail with SQLITE_BUSY
+    await dbRun(db, 'PRAGMA busy_timeout = 5000');
+
     // 1. Get total repair count
     const totalCountRow = await dbGet<{ count: number }>(db, 'SELECT COUNT(*) as count FROM repairs');
     const totalRepairs = totalCountRow?.count || 0;
@@ -143,7 +130,10 @@ async function main() {
     console.log('📋 Changes to be made:');
     console.log('----------------------------------------------------');
     toUpdate.forEach((item, index) => {
-      console.log(`${index + 1}. [ID ${item.id}] "${item.original}" ➔ "${item.cleaned}" (${item.client_name})`);
+      // Check if original might have contained two separate phone numbers separated by spaces
+      const isMultiPhoneWithoutSeparators = /^[0-9]{5,}\s+[0-9]{5,}$/.test(item.original.trim());
+      const note = isMultiPhoneWithoutSeparators ? ' ⚠️ [2 numbers merged]' : '';
+      console.log(`${index + 1}. [ID ${item.id}] "${item.original}" ➔ "${item.cleaned}" (${item.client_name})${note}`);
     });
     console.log('----------------------------------------------------\n');
 
@@ -152,6 +142,33 @@ async function main() {
       console.log('To apply these changes, run without the --dry-run flag:');
       console.log('   npm run remove-phone-spaces\n');
       return;
+    }
+
+    // Create automatic backup before live modifications
+    if (!noBackup) {
+      // Flush any pending WAL writes
+      try {
+        await dbRun(db, 'PRAGMA wal_checkpoint(PASSIVE)');
+      } catch (walErr) {
+        // Ignore if WAL mode is not enabled
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupDir = path.join(path.dirname(resolvedDbPath), 'backups');
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      const dbFileName = path.basename(resolvedDbPath);
+      const backupPath = path.join(backupDir, `${dbFileName}_backup_before_phone_clean_${timestamp}`);
+      
+      try {
+        fs.copyFileSync(resolvedDbPath, backupPath);
+        console.log(`💾 Automatic backup created at: ${backupPath}\n`);
+      } catch (backupError) {
+        console.error('⚠️  Failed to create automatic backup:', backupError);
+        console.error('Aborting execution for safety. Pass --no-backup to proceed without backup.');
+        throw backupError;
+      }
     }
 
     // 5. Apply updates in a transaction
@@ -192,18 +209,21 @@ async function main() {
       console.log('\n⚠️  Notice: Some records still match LIKE "% %". Please inspect.');
     }
 
-  } catch (err) {
-    console.error('❌ Script encountered an error:', err);
-    process.exit(1);
   } finally {
-    db.close();
+    // Ensure DB connection is closed cleanly
+    await new Promise<void>((resolve) => {
+      db.close((err) => {
+        if (err) console.error('Error closing database:', err);
+        resolve();
+      });
+    });
   }
 }
 
 // Execute when run directly
 if (require.main === module) {
   main().catch((err) => {
-    console.error('Fatal error:', err);
+    console.error('Fatal error in removePhoneSpaces script:', err);
     process.exit(1);
   });
 }
